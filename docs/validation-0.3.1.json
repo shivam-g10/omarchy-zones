@@ -1,0 +1,121 @@
+{
+  "version": "0.3.1",
+  "date": "2026-09-20",
+  "installed": true,
+  "native": {
+    "passed": true,
+    "environment": "Hyprland 0.56.2, Qt Wayland, private nested 1280x900 display, scale 1",
+    "checks": [
+      "native live border and theme controls",
+      "exact numeric shared boundary",
+      "concurrent relaunch activates one editor and preserves unsaved changes",
+      "relaunch preserves active modal dialog",
+      "profile thumbnail fits and native popup opens",
+      "mouse shared boundary",
+      "save only definitions and preserve existing window",
+      "event-driven palette and shell control refresh",
+      "live zero-width border and rounding",
+      "exact distributable opens natively"
+    ]
+  },
+  "automated": {
+    "ctest_targets_passed": 7,
+    "manager_tests_passed": 20,
+    "instance_subprocess_groups_passed": 13,
+    "render_pixel_ratios": [
+      1,
+      1.25,
+      2
+    ],
+    "instance_sanitizers": [
+      "ASan",
+      "UBSan",
+      "LSan"
+    ],
+    "render_lifecycle_cycles": 32,
+    "render_sanitizers": [
+      "ASan",
+      "UBSan"
+    ],
+    "render_lsan_limit": "183 bytes in four NVIDIA driver allocations; reproduced by a fresh minimal Qt baseline"
+  },
+  "editor_idle": {
+    "sample_seconds": 20,
+    "before": {
+      "cpu_percent_one_core": 0.0,
+      "rss_kib": 109100,
+      "pss_kib": 37747,
+      "private_kib": 22588,
+      "threads": 14
+    },
+    "after": {
+      "cpu_percent_one_core": 0.04999981743817708,
+      "rss_kib": 114408,
+      "pss_kib": 39546,
+      "private_kib": 23548,
+      "threads": 15
+    },
+    "increment_kib": {
+      "rss_kib": 5308,
+      "pss_kib": 1799,
+      "private_kib": 960
+    },
+    "resident_helpers": 0,
+    "limits": "Endpoint comparison, not peak/GPU memory or a long-running benchmark. No fresh plugin idle sample for this editor-only change."
+  },
+  "production": {
+    "preserved_config_files": 165,
+    "added_config_files": [],
+    "changed_config_files": [],
+    "preserved_windows": 4,
+    "changed_windows": [],
+    "changed_owned_files": [
+      "omarchy-zones.so",
+      "omarchy-zones-editor",
+      "manifest.json"
+    ],
+    "manifest_hashes_verified": 6,
+    "profiles": 4,
+    "configerrors": ""
+  },
+  "limits": [
+    "Native physical fractional scaling and multi-monitor behavior not verified.",
+    "Cross-display pixel-ratio changes not verified.",
+    "Exhaustive theme variants not verified.",
+    "Snapping code unchanged; earlier native snapping evidence is retained in validation.md."
+  ],
+  "source_sha256": {
+    "scripts/manage.py": "d5beeb88bb12ea2abfa3f071bdda6af672771a062bdd65c7f52f8141e87ce4ff",
+    "src/editor.cpp": "52af9e60a2d47e1658a058bbe1fa02ee14303ea8b539d609eafbe478b4babd28",
+    "src/editor_activation.hpp": "ca28410b10adc1cfbe92aad67178cc76842f1fa0ad5fa5079c040d1e299e5b8a",
+    "src/editor_instance.hpp": "ddfec05c93bcf4c2bff19cc2991af3e10a7c294e6f5973ae47ee84bf505cd62d",
+    "src/editor_theme.hpp": "3ba42f770255957f6f8078e69f1fe988cd38fb68aa804e5a09053c3327fd555a",
+    "src/geometry.hpp": "9166e8e09d5bcdeaacb9cf5860848a93e1da1b079f66cff18174fbe49918ec83",
+    "src/plugin.cpp": "8b3c8534583232f2db1b039f999e74650bcd272926d6e91bfcfaa08d7b5a645c",
+    "src/profiles.hpp": "54e2333dbd732bfa544ffb6ec3babcaf63fa3b93a5fe1109b3fc9af3600eae4d",
+    "src/theme.hpp": "9b9f8741eef5bafe7c637bb54f4838adf7fbef23e0b2a8267223076a4d37d891",
+    "tests/editor_instance_test.cpp": "c5dfa1da082d9850bcf1a6e4bbad863b98c0bbcf2ec12601895caf6f1d65e6ab",
+    "tests/editor_native.cpp": "8bb8d568be4dd0ee2c481928285552e6aca6f2885cca77e45f44985edb5380fa",
+    "tests/editor_profiles_test.cpp": "e5fc11222b8433ed8c5d6d7ea15b0b78092953922289e73d40d9cd0d26a316c7",
+    "tests/editor_render_test.cpp": "d934a8f99651fdc1254d3994d153d1536294d32709319fb1105840ceddee5e9e",
+    "tests/geometry_test.cpp": "6c72ac5acdac778077439d624eca2274881627b451adcb5243c1213ab3dd1092",
+    "tests/isolated/check_editor.py": "48593981e7228cc5fb13735ce13c7a79c075039b7eccb19a90371795d69b8cdd",
+    "tests/isolated/check_plugin.py": "51def844b1344204ef750cf791132cabea81fe06b8168c557659f1d77c8e9d4f",
+    "tests/isolated/check_update.py": "00a587d4766873b28888f316661ce03ecbb227e988a0aaf419e205dc9eb8d38b",
+    "tests/isolated/common.py": "855ae8cf6824ce50f8f26c4497208cae920cb2bb4a879551e4994a3bc8200f9f",
+    "tests/isolated/lab.py": "35cb55792b9a9b270ebf715ed6952869a800aa10f87f995484658895fee3a23c",
+    "tests/isolated/measure.py": "94a780ef155be4ae9cbbf03010109eda9b55ebdc20abe659f1fb3c4b3a11dd41",
+    "tests/isolated/measure_idle_plugin.py": "f4f75af6ef233f086832a7c2ca5405e5a294fae668298f2934469b0dd4656c91",
+    "tests/manage_test.py": "d4f41b9e34c39d2fc2ff4a97b475dfea823435869f9d4badd6f2ad67a83e8ed8",
+    "tests/measure_idle.py": "b0e251b012299c614e826af63d3f0561c4816fec16140f3e1281e3e94d026c05",
+    "tests/native_drag_check.py": "ac6c9abc2161a5614bfbe5ba1a0d5a3a6e64e0543fc63628250c242f526cde1a",
+    "tests/native_driver.py": "5ce01979d685d44d967f573ad2f08a3b71b8b288b83894b01d968740b6a6b4f8",
+    "tests/native_input.cpp": "5e73f8a709671f06d6794161d5e8375f0e3c12a39ffd5c3de3b4174d8a9fb4c6",
+    "tests/native_profiles_check.py": "7badac057f3ee0cd5c7b60b8ee5efe55caecc7ac3f411f23ff004e4eaa4c5fb5",
+    "tests/native_window.cpp": "17616577f1f852dac7c237b33611703ff315daf8d1f92682617dd69954ba1b06",
+    "tests/profiles_test.cpp": "2cfb95fd681d7b0e44c2cf778c9ea3ac229a3a0bb1f8cdd46449c36518c33996",
+    "tests/theme_test.cpp": "77c004272e7d6a3ae3d8f9ef6875406a6f8de9f58bf578f41f826351180a9493",
+    "CMakeLists.txt": "44355ed6484f385632fe8804bd819033d0a7774ceb98908614ab5d4b342243c6"
+  },
+  "evidence_directory": "evidence/editor-fixes"
+}

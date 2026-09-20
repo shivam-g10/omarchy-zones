@@ -1,0 +1,15 @@
+[package]
+name = "zones-qtbridge-poc"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+publish = false
+
+[dependencies]
+qtbridge = "=0.2.0"
+notify = "=8.2.0"
+serde_json = "1"
+toml = { version = "=1.1.6", default-features = false, features = ["parse", "std", "serde"] }
+
+[profile.release]
+strip = "debuginfo"

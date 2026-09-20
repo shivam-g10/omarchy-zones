@@ -1,0 +1,7 @@
+/build/
+/evidence/
+/build-*/
+/tests/isolated/generated/
+__pycache__/
+*.pyc
+.qmlls.ini
