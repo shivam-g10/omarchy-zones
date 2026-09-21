@@ -2,10 +2,14 @@
   "schemaVersion": 1,
   "id": "omarchy-zones",
   "name": "Omarchy Zones",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "author": "shivam-g10",
-  "description": "Dedicated window zones for large displays, inspired by FancyZones. Opens the separately installed native zone editor.",
+  "description": "Dedicated window zones and profiles for large displays, inspired by FancyZones. Runs inside the existing Omarchy shell.",
   "homepage": "https://github.com/shivam-g10/omarchy-zones",
-  "kinds": ["panel"],
-  "entryPoints": { "panel": "shell/Launcher.qml" }
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "shell/Service.qml"
+  }
 }

@@ -8,14 +8,21 @@ permissions:
   contents: read
 
 jobs:
-  editor-and-core:
+  qml-and-models:
     runs-on: ubuntu-latest
     container: archlinux:base
     steps:
-      - name: Install build dependencies
-        run: pacman -Syu --noconfirm --needed git cmake gcc make pkgconf qt6-base tomlplusplus python ttf-dejavu
+      - name: Install test tools
+        run: pacman -Syu --noconfirm --needed git nodejs python lua qt6-declarative
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Build editor and core checks
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOMARCHY_ZONES_BUILD_PLUGIN=OFF && cmake --build build --parallel 2
-      - name: Test
-        run: ctest --test-dir build --output-on-failure && python tests/manage_test.py && python tests/packaging_test.py
+      - name: Check models and installer
+        run: |
+          node tests/model_test.mjs
+          node tests/editor_callbacks_test.mjs
+          python tests/install_test.py
+      - name: Parse QML and Lua
+        run: |
+          for file in shell/*.qml; do /usr/lib/qt6/bin/qmlformat "$file" >/dev/null; done
+          luac -p shell/bindings.lua
+          bash -n scripts/setup.sh
+          sh -n scripts/launch-editor.sh

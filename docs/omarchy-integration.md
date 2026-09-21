@@ -1,52 +1,58 @@
-# Omarchy integration research
+# Omarchy integration
 
-Checked on 20 September 2026 against Omarchy 4.0.4-1's installed commands and
-the official sources linked below.
+The root manifest uses schema version 1, ID `omarchy-zones`, kind `service` and
+entry point `shell/Service.qml`. The service runs inside the existing
+`omarchy-shell`; editor and overlay components load on demand.
 
-## Supported contract
+## Installation contract
 
-Omarchy discovers a root `manifest.json` containing schema version 1, ID, name,
-version, kinds, and QML entry points. Supported kinds are shell components;
-there is no native Hyprland build/install kind. Panels load on demand inside
-the existing Quickshell process. This repository declares a `panel` entry that
-opens the separately installed native editor and then releases its own loader.
+Omarchy's Git installer clones and validates a repository, then optionally enables
+its plugin. It executes no repository hooks or privileged commands. Updates
+fast-forward source; removal disables and removes the shell checkout.
 
-The local validator accepts `omarchy-zones`. The reserved prefix is `omarchy.`
-with a dot, not `omarchy-`. The requested exact ID is retained. The general guides
-recommend namespaced IDs, and the newer registry server has a stricter
-publisher/plugin namespace rule. Direct Git compatibility does not establish
-future marketplace acceptance; resolve that contract before submitting.
+`scripts/setup.sh`, backed by `scripts/manage.py`, explicitly installs the
+additional desktop integration: a marked `dofile` block for `shell/bindings.lua`,
+a command launcher and an application entry. It then enables the service.
+Local-checkout installation copies runtime files into the user plugin directory;
+same-directory Git installation preserves the checkout.
 
-Git installation clones and validates files, then optionally enables the shell
-plugin. It executes no build scripts, installation hooks, or privileged commands.
-Updates fast-forward source; they do not rebuild native dependencies. Removal
-disables/deletes the shell checkout without invoking native uninstall hooks.
+Run setup removal before `omarchy plugin remove omarchy-zones`. Setup removes
+owned integration and keeps profiles and plugin source; Omarchy can then remove
+the source directory. Profiles remain outside that directory. Setup honors XDG
+configuration/data paths, while Omarchy's Git installer uses its home-directory
+plugin path.
 
-Accordingly, `scripts/setup.sh` is an explicit user command. It builds in the
-user's cache, then delegates to the existing native ownership/ABI manager.
-Removal runs that manager before removing the shell checkout. Enabling or
-disabling the shell launcher does not change native snapping or close unsaved
-editor windows. This distinction is intentional and stated in the README.
+## Runtime access
 
-## Why not hyprpm as well
+```sh
+omarchy-zones
+omarchy-shell omarchy-zones openEditor
+omarchy-shell omarchy-zones status
+```
 
-Hyprland documents `hyprpm.toml` for native plugin builds and loading, but that
-does not install the editor, hotkeys, or Omarchy integration. Adding a second
-owner for the same `.so` would complicate update/removal. This PoC retains one
-native manager. A later packaging change should replace ownership coherently,
-not mix managers for an already-installed backend.
+Enabling the service enables gesture handling. Disabling it cancels pending work
+and unloads its UI. Save and close the editor before disabling, updating,
+removing or reloading. Ordinary dragging and Exposé remain independent.
 
-## Official sources
+## Identifier and marketplace
 
-- [Omarchy development guide](https://plugins.omarchy.org/develop.html)
-- [Omarchy publishing guide](https://plugins.omarchy.org/publish.html)
-- [Omarchy shell plugins manual](https://omarchy.org/manual/shell-plugins/)
-- [Shell runtime and manifest reference](https://github.com/omacom/omarchy/blob/quattro/shell/README.md)
+The ID is **`omarchy-zones`**. The installed CLI validator accepts it; the reserved
+prefix is `omarchy.` with a dot, not `omarchy-`.
+
+Git distribution and marketplace listing are separate. The publishing guides
+recommend namespaced IDs, and the registry inspected on 20 September 2026
+required a publisher/plugin namespace. Recheck that rule and select a project
+license before a listing. Local validation does not establish marketplace
+acceptance. No marketplace submission workflow is configured.
+
+## Official references
+
+- [Development guide](https://plugins.omarchy.org/develop.html)
+- [Publishing guide](https://plugins.omarchy.org/publish.html)
+- [Shell plugins manual](https://omarchy.org/manual/shell-plugins/)
+- [Runtime and manifest reference](https://github.com/omacom/omarchy/blob/quattro/shell/README.md)
 - [CLI validator](https://github.com/omacom/omarchy/blob/quattro/bin/omarchy-plugin-validate)
 - [Registry namespace validation](https://github.com/omacom/omarchy-plugin-registry/blob/main/app/services/registry/manifest_validator.rb)
-- [Official plugin with an explicit external CLI dependency](https://github.com/basecamp/omarchy-basecamp-plugin)
-- [Hyprland native plugin guidelines](https://wiki.hypr.land/hyprland-plugins/development/plugin-guidelines/)
 
-The installed validator/add/update/remove scripts were inspected as well as the
-web documentation. No registry account, marketplace submission, automatic
-publishing workflow, or new resident process is part of this repository setup.
+The installed shell loader and command sources were inspected alongside these
+references.

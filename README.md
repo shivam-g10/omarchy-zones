@@ -1,152 +1,117 @@
 # Omarchy Zones
 
-Dedicated window zones for large displays on Omarchy, inspired by Windows
-PowerToys FancyZones. Define a layout once, then place a window exactly where
-you want it with a hotkey and a drag.
+Dedicated window zones for large screens, inspired by Windows PowerToys
+FancyZones. Draw a layout, choose a profile while dragging, and snap once.
 
-**Plugin ID: `omarchy-zones` · Version: 0.3.1 · Status: proof of concept**
+**Plugin ID: `omarchy-zones` · Version: 0.4.0**
 
-![Zone editor with exact numeric controls and a shared boundary](docs/assets/editor.png)
-
-The screenshot uses a two-zone test layout in a private native Wayland display.
-
-## Use it
-
-1. Press **Super+Shift+F8** or launch **Omarchy Zones**. Draw, split, move, and
-   resize zones with the mouse or exact numeric values. Shared boundaries grow
-   one zone while shrinking its neighbor. Overlaps are rejected.
-2. Save multiple named profiles. Reopening settings focuses the existing editor
-   and preserves unsaved edits, including an open dialog.
-3. Hold **Super+Shift before dragging** a window with the left mouse button.
-   A profile picker appears at the top of the display.
-4. Hover a miniature zone to preview its target, then release there to snap.
-   You can also continue onto the full-size overlay and release over a zone.
-
-The picker appears only during an activated window move. Ordinary Super+drag
-stays native. Release Shift before dropping to cancel. On the tested Hyprland
-build, changing modifiers can end a drag, so hold Shift before starting. Shift
-plus an application's native title-bar drag also works.
-
-Snapping is a **one-time operation**. Editing or changing profiles never
-rearranges existing windows. Only zone definitions are saved; no window IDs,
-assignments, or links. Snapped windows float and retain Hyprland's normal
-floating-over-tiled stacking. There is no automatic placement, focus policy,
-stacking policy, or terminal-specific behavior. Exposé remains independent.
-
-## Compatibility
-
-Tested on **Omarchy 4.0.4-1**, its **Lua-based Hyprland 0.56.2**, and **Qt 6.11.2**.
-The native plugin must be built against headers matching the **running
-Hyprland commit**, not merely the same version number. Rebuild after compositor
-upgrades. Older `.conf`-based Omarchy releases are not supported by the installer.
-
-Required: GCC with C++23 support, CMake, pkg-config, Qt 6 Base and Wayland,
-tomlplusplus, Python 3, and matching Hyprland headers. On a compatible Omarchy
-installation, missing build/runtime packages can be installed explicitly:
-
-```sh
-omarchy pkg add base-devel cmake pkgconf qt6-base qt6-wayland tomlplusplus
-```
-
-Do not replace or force-load mismatched Hyprland headers to bypass the ABI check.
-Multiple physical monitors, rotation, fractional scaling, and XWayland still
-need native validation. See [validation and limits](docs/validation.md).
+- **Precise layouts:** mouse controls, exact numeric values and shared boundaries.
+- **Quick profiles:** choose a saved layout from the picker during a drag.
+- **Native theme:** uses Omarchy's existing controls, colors and typography.
+- **Quiet idle:** runs in the existing shell, with no idle cursor polling or extra daemon.
 
 ## Install
 
-Omarchy's official Git installer installs the **shell launcher**. It does not
-compile or install native dependencies, so native setup is a separate explicit
-step. No build or installation runs when the shell plugin is enabled.
+**Ask your Omarchy agent:**
+
+> Install https://github.com/shivam-g10/omarchy-zones using its README.
+
+Requires Omarchy with its Quickshell shell, Lua-based Hyprland and Python 3.
+No compilation or additional package installation is needed on the
+[tested Omarchy version](docs/validation.md).
 
 ```sh
 omarchy plugin add https://github.com/shivam-g10/omarchy-zones.git
-cd "$HOME/.config/omarchy/plugins/omarchy-zones"
-./scripts/setup.sh install
-omarchy plugin enable omarchy-zones
+~/.config/omarchy/plugins/omarchy-zones/scripts/setup.sh install
 ```
 
-Review the checkout before enabling it. If the add command asks about enabling
-immediately, leave it disabled until native setup finishes.
+If `add` asks about enabling, leave it disabled until setup. Setup installs the
+hotkeys and application launcher, then enables the service. It preserves saved
+profiles and unrelated desktop configuration. Exposé remains independent.
 
-The native installer adds a marked block to `~/.config/hypr/hyprland.lua`, the
-two hotkeys, an editor window rule, an application entry, and per-user binaries
-under `~/.local/share/omarchy-zones/`. It refuses shortcut conflicts and preserves
-unrelated desktop configuration. `XDG_CONFIG_HOME` and `XDG_DATA_HOME` are honored
-by the native component; Omarchy's own Git installer uses its standard home path.
+## Everyday use
 
-Build output goes to `${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-zones/build`, outside
-Omarchy's watched plugin checkout. Set `OMARCHY_ZONES_BUILD_DIR` to use a different
-build directory. Setup never installs system packages or requests elevation.
+1. Press **Super+Shift+F8** or launch **Omarchy Zones** to edit profiles. Draw,
+   split, move or resize zones. Shared edges grow one neighbor and shrink the
+   other; overlaps are rejected.
+2. Hold **Super+Shift before dragging** a window with the left mouse button.
+   Hover a profile miniature or a full-size zone, then release to snap.
+3. Release Shift before dropping to cancel. Ordinary Super+drag stays native.
 
-The shell route opens the same native editor:
-
-```sh
-omarchy-shell shell summon omarchy-zones '{}'
-```
-
-The launcher unloads after handoff. Hiding or disabling it does not close an
-editor with pending changes, and it does not disable the native snapping backend.
-The hotkey and application entry also work without the shell launcher.
+Reopening the editor preserves its unsaved draft. Editing profiles never moves
+existing windows. Only definitions are saved; there are no window assignments or
+persistent links. Snapped windows float, with normal floating-over-tiled stacking.
+Native title-bar-only dragging is not yet verified.
 
 ## Update or remove
 
-Close the editor before a native update. Update the Git checkout, then rebuild
-the native binaries against the running compositor:
+Save and close the editor first. Updating or unloading a shell service discards
+its unsaved in-memory draft.
+
+**Update**
 
 ```sh
 omarchy plugin update omarchy-zones
-cd "$HOME/.config/omarchy/plugins/omarchy-zones"
-./scripts/setup.sh update
+~/.config/omarchy/plugins/omarchy-zones/scripts/setup.sh update
 ```
 
-Native updates verify file ownership and ABI compatibility. They replace only
-the two binaries and ownership manifest, with rollback for handled failures.
-Saved profiles and desktop integration remain intact. Power-loss recovery during
-an update is not a crash-durable transaction.
-
-Remove the native component **before** deleting the shell checkout:
+**Remove**
 
 ```sh
-cd "$HOME/.config/omarchy/plugins/omarchy-zones"
-./scripts/setup.sh remove
+~/.config/omarchy/plugins/omarchy-zones/scripts/setup.sh remove
 omarchy plugin remove omarchy-zones
 ```
 
-This unloads the backend and removes owned integration, binaries, and shortcuts.
-Edited owned files cause removal to stop instead of overwriting changes. Zone
-definitions remain at `~/.config/omarchy-zones/zones.conf`. Existing window
-positions are not restored. The compiler cache can be removed separately.
+Run setup removal before deleting the checkout: Omarchy does not run uninstall
+hooks. Setup removes owned desktop integration and keeps profiles at
+`~/.config/omarchy-zones/zones.conf`. Existing window positions remain unchanged.
 
-Existing standalone installations can use `./scripts/setup.sh update` from
-their current checkout; reinstalling or replacing profiles is unnecessary.
+## Performance
 
-## Design and development
+Measured 21 September 2026 in two private native-desktop resource rounds at
+2560 × 1440, 60 Hz, with 30 Hz cursor sampling during activated gestures.
+PSS covers the **whole fixture**, including shell, compositor, clients and
+helpers. Phase increments use each round's disabled endpoint; the replay row
+compares its stated gesture counts. CPU uses **100% = one core**. These are
+observed ranges, not guarantees or fresh release measurements.
 
-- A C++ Hyprland plugin observes native drag/input/render events and performs
-  one qualified move/resize after release. No idle polling or resident helper.
-- A Qt Widgets editor runs only while open. A private socket forwards explicit
-  relaunches, while a kernel lock prevents concurrent editors for one configuration.
-- Shared theme parsing follows Omarchy colors, control states, font alias, and
-  live Hyprland border gradients, width, and rounding.
-- The small QML entry point follows Omarchy's official shell manifest/lifecycle.
-  It opens the native editor and releases its loader without a resident service.
+| Measurement | Observed result |
+| --- | ---: |
+| Enabled idle: PSS / average CPU | −0.12 to +2.35 MiB / 0.015% |
+| Editor visible: PSS / average CPU | +8.0–22.5 MiB / 0.029–0.031% |
+| Stationary activated overlay: PSS / average CPU | +8.1–24.8 MiB / 0.517–0.620% |
+| Gesture workload: average / maximum one-second CPU | 3.92–4.78% / 5.42% |
+| CPU per gesture, including reset/setup | 28.70–35.17 ms |
+| CPU per editor action, including probes | 6.86–7.30 ms |
+| Editor window map time, 3 observations | 28.6–38.5 ms |
+| Activation state: median / maximum, n=5 | 2.35 / 3.65 ms |
+| Highlight state: median / maximum, n=5 | 16.83 / 17.50 ms |
+| Release to correct geometry: median / maximum, n=5 | 5.42 / 5.43 ms |
+| PSS retained 30 s after editor close | +10.6–26.4 MiB |
+| PSS retained 30 s after 20 gestures | +12.8–25.6 MiB |
+| Retention replay: growth from gesture 20 to 100 / final 40 | +9.31 MiB / about +0.07 MiB |
+| Added resident helpers / continuing idle cursor queries | 0 / 0 observed |
 
-`hyprctl zones` reports overlay state, snap count, theme, and configuration errors
-on demand. Definitions use monitor connector names and logical client pixels;
-compositor borders extend outside the saved rectangle. Up to 12 profiles and
-64 zones per profile are supported. Legacy v1 definitions are preserved and
-converted only when saved. Grouped windows and conflicting application size
-constraints are rejected.
+The negative idle endpoint is measurement drift, not free RAM. The shell retains
+memory after UI closes. State timings are proxies, not physical presentation
+latency; five samples do not establish p95. CPU time per action is not elapsed
+response time. [Methodology and limits](docs/validation.md#measurement-methodology)
+· [Machine-readable measurements](docs/performance.json).
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for builds and checks,
-[maintenance](docs/maintenance.md) for the code map, and
-[Omarchy integration notes](docs/omarchy-integration.md) for the researched
-packaging contract. Historical Rust feasibility work remains under
-[`poc/rust-evaluation/`](poc/rust-evaluation/); it is not installed by the product.
+## Development and diagnostics
 
-Distribution is through this Git repository. No marketplace submission has been
-made. The [official development](https://plugins.omarchy.org/develop.html) and
-[publishing](https://plugins.omarchy.org/publish.html) guides informed this layout.
+```sh
+omarchy-zones
+omarchy-shell omarchy-zones status
+```
+
+For a local development checkout, run `./scripts/setup.sh install`; setup copies
+only runtime files and installation support into the user plugin directory.
+See [development](CONTRIBUTING.md), [maintenance](docs/maintenance.md) and
+[Omarchy integration](docs/omarchy-integration.md).
+
+Earlier prototypes explored C++ and Rust; this release uses QML, JavaScript and
+Hyprland Lua.
 
 ## License
 

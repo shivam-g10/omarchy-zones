@@ -1,0 +1,34 @@
+{
+  "version": "0.4.0",
+  "date": "2026-09-21",
+  "implementation": "QML/JavaScript/Hyprland Lua",
+  "tests": {
+    "installer_sandbox_cases": 14,
+    "actual_offscreen_store_cases": 9,
+    "javascript_models": "passed",
+    "editor_callbacks": "passed",
+    "qml_js_lua_parsing": "passed",
+    "official_plugin_validation": "passed"
+  },
+  "live_lifecycle": {
+    "version": "0.4.0",
+    "live_install_update_remove_reinstall": true,
+    "owned_block_removed_exactly": true,
+    "profiles_unchanged": true,
+    "hyprland_reload_reenabled_lua": true,
+    "idle_cursor_queries_added": 0,
+    "unrelated_bindings_preserved": true,
+    "expose_enabled": true,
+    "native_plugin_list": [],
+    "config_errors": [],
+    "saved_profiles": 4
+  },
+  "live_editor": {
+    "native_editor_opened": true,
+    "single_floating_editor": true,
+    "existing_window_geometry_unchanged": true,
+    "editor_closed_after_check": true,
+    "saved_profile_count": 4
+  },
+  "physical_drag": "The user reported responsive dragging on the physical desktop. Automated real-window correctness checks used a private Hyprland desktop. Physical display latency was not instrumented."
+}

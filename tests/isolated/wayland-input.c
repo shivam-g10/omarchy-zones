@@ -48,7 +48,7 @@ int main(void) {
     struct xkb_state *state = xkb_state_new(keymap);
     char *keymap_text = xkb_keymap_get_as_string(keymap, XKB_KEYMAP_FORMAT_TEXT_V1);
     size_t size = strlen(keymap_text) + 1;
-    int fd = memfd_create("zones-poc-keymap", MFD_CLOEXEC);
+    int fd = memfd_create("zones-test-keymap", MFD_CLOEXEC);
     if (fd < 0 || ftruncate(fd, size) || write(fd, keymap_text, size) != (ssize_t)size) return 5;
     zwp_virtual_keyboard_v1_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, size);
     close(fd); free(keymap_text);

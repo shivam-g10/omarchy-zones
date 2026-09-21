@@ -1,69 +1,60 @@
 # Development
 
-Keep changes small and preserve one-time snapping: profile editing must never
-move existing windows, and saved definitions must never contain window links.
-Keep Exposé and unrelated desktop settings separate.
+Omarchy Zones runs inside the existing Omarchy shell using QML, JavaScript and
+Hyprland Lua. Python and shell scripts provide installation and removal.
 
-## Build and test
+## Product boundaries
 
-Use a normal development checkout, not the directory watched by Omarchy's shell:
+- Snapping is one-time. Editing or switching profiles must never move windows.
+- Save definitions only, never window IDs, assignments or persistent links.
+- Keep ordinary dragging native and Exposé independent.
+- Reuse Omarchy's controls and theme services.
+- Do no cursor polling at idle. Measure incremental CPU/RAM including helpers.
 
-```sh
-git clone https://github.com/shivam-g10/omarchy-zones.git
-cd omarchy-zones
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel 2
-ctest --test-dir build --output-on-failure
-python tests/manage_test.py
-python tests/packaging_test.py
-```
+## Checks
 
-The full build needs the running Hyprland's exact headers. To work on the editor
-and core without compositor headers, use a separate build directory:
-
-```sh
-cmake -S . -B build-editor -DOMARCHY_ZONES_BUILD_PLUGIN=OFF
-cmake --build build-editor --parallel 2
-ctest --test-dir build-editor --output-on-failure
-```
-
-An editor-only build cannot be installed as a complete plugin. CI runs that
-portable subset plus installer/packaging checks. CI does not prove native drag,
-shell lifecycle, physical monitor, or compositor ABI behavior.
-
-Validate a clean publication checkout with Omarchy and the installed QML tools:
+Work in a development checkout. Editing installed plugin source can reload the
+service, so save and close its editor first.
 
 ```sh
 omarchy plugin validate .
-/usr/lib/qt6/bin/qmllint shell/Launcher.qml
+/usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell shell/*.qml
+node tests/model_test.mjs
+node tests/editor_callbacks_test.mjs
+python3 tests/store_test.py
+python3 tests/install_test.py
 ```
 
-Omarchy's validator rejects symlinks even in ignored build directories. Validate
-a clean clone or staged publication snapshot, not a checkout containing native
-lab files. Native tools and controlled desktop procedures are documented in
-[tests/README.md](tests/README.md). Test helpers are never installed as services.
+Node.js runs development tests only. `qmllint` needs the installed Omarchy and
+Quickshell imports. Omarchy's manifest validator rejects symlinks anywhere in the
+plugin folder, including ignored test artifacts; use a clean checkout if needed.
+
+For drag, geometry or lifecycle changes, also test real native windows. Verify
+snapping, cancellation, ordinary dragging, shared-boundary edits, overlap
+rejection, one editor with an unsaved draft, and unchanged windows after edits.
+Recheck installation, update, disable, reload and removal while preserving
+unrelated configuration. Record missing coverage in [validation.md](docs/validation.md).
 
 ## Structure
 
 | Path | Responsibility |
 | --- | --- |
-| `manifest.json`, `shell/` | Omarchy ID, metadata, and on-demand QML launcher |
-| `src/` | Native snapping, editor, geometry, profiles, theme and instance handling |
-| `scripts/setup.sh` | Explicit build and native lifecycle entry point |
-| `scripts/manage.py` | ABI/ownership checks, installation, update rollback and removal |
-| `tests/` | Core, renderer, process, installer, packaging and native checks |
-| `docs/` | Architecture, evidence summaries, compatibility and development decisions |
-| `poc/rust-evaluation/` | Historical experiments; not production build inputs |
+| `manifest.json` | Stable identity and service entry point |
+| `shell/Service.qml` | Gesture state, IPC, Hyprland queries and component loaders |
+| `shell/Editor.qml`, `shell/Overlay.qml` | Editor, zones and profile picker |
+| `shell/Geometry.js`, `shell/Profiles.js`, `shell/Layouts.js` | Rectangle edits, profile format and layouts |
+| `shell/Store.qml` | Bounded reads and atomic saves |
+| `shell/bindings.lua` | Native drag integration and one-time release handshake |
+| `scripts/setup.sh`, `scripts/manage.py` | Owned installation, update and removal |
+| `tests/` | Model, callback, storage and installer regressions |
 
-Do not commit compiler output, runtime sockets, raw desktop captures, personal
-configuration, local measurement logs, or generated language-server settings.
-Public validation summaries must distinguish measured results from untested
-cases. Measure incremental idle CPU/RAM, including helpers, for runtime changes.
+Keep runtime sockets, personal profiles, desktop captures, raw measurement logs
+and generated language-server settings out of Git. Public measurements belong in
+`docs/performance.json`, with their scope and limitations in `docs/validation.md`.
 
-## Publishing boundary
+## Distribution
 
-The permanent Git-install ID is `omarchy-zones`. Keep CMake, editor, native plugin
-and manifest versions consistent. Validate, build, test and inspect staged files
-before pushing. Marketplace submission is a separate action; no workflow here
-submits or releases automatically. Review the current official publishing rules
-again before any future listing, including license and namespace requirements.
+Keep the ID `omarchy-zones` and active version metadata consistent. Review and
+validate staged files before pushing. Marketplace submission is separate from
+Git distribution; recheck its current namespace and licensing requirements
+before any listing. Do not add automatic publication workflows without approval.

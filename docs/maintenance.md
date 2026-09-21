@@ -1,161 +1,74 @@
 # Maintenance
 
-The product remains C++ with a Qt Widgets editor. The Rust experiments under
-`poc/rust-evaluation/` are separate research artifacts and are not built or
-installed by the production CMake project.
+The plugin is a QML service in Omarchy's existing shell. JavaScript handles model
+logic; Hyprland Lua handles the native gesture and final placement. The editor
+and overlay load on demand.
 
 ## Code map
 
 | File | Responsibility |
 | --- | --- |
-| `src/plugin.cpp` | Native Hyprland drag events, profile picker, rendering, one-time snap, and transient state cleanup. |
-| `src/editor.cpp` | Qt Widgets editor, monitor validation, profile operations, shared-boundary input, and atomic profile saves. |
-| `src/geometry.hpp` | Rectangle validation and transactional movement/shared-boundary changes, independent of Qt and Hyprland. |
-| `src/profiles.hpp` | Bounded profile format parsing, name/coordinate validation, and serialization. |
-| `src/theme.hpp` | Bounded TOML input and shared palette, gradient, control-state, and font values. Contains no Qt/compositor objects. |
-| `src/editor_theme.hpp` | Qt palette/style adaptation and event-driven theme refresh while the editor is open. |
-| `src/editor_instance.hpp` | Configuration locking and bounded, same-user local activation requests. |
-| `src/editor_activation.hpp` | Revealing the existing editor or modal dialog on an explicit relaunch. |
-| `scripts/manage.py` | Ownership-checked installation, binary updates with rollback, and reversible removal. |
+| `shell/Service.qml` | Gesture state, bounded socket requests, IPC and loaders |
+| `shell/Editor.qml` | Definition draft, profile operations and shared-boundary controls |
+| `shell/Overlay.qml` | Zones, hover highlight and profile miniatures |
+| `shell/Geometry.js` | Validated rectangle movement and shared-edge edits |
+| `shell/Profiles.js` | Bounded profile parsing, validation and serialization |
+| `shell/Layouts.js` | Picker layout and layout helpers |
+| `shell/Store.qml` | File notifications, bounded reads and atomic saves |
+| `shell/bindings.lua` | Activated drag, cancellation and one-time snap handshake |
+| `scripts/manage.py` | Owned plugin files, Hyprland integration and lifecycle |
 
-The editor never dispatches window movement. The plugin holds a weak reference
-only during the current drag and its deferred drop callback. Saved data contains
-zone definitions, not window identities or assignments. Preserve these boundaries
-when adding features.
+## Gesture lifecycle
 
-## Theme behavior
+An activated mouse press captures the current window for that gesture only.
+Lua emits a begin event; the service reads usable monitor geometry and snapshots
+the saved definitions. Cursor sampling runs at 30 Hz while active, through the
+compositor socket. Only one request is in flight; release/control requests take
+priority over another sample. No cursor helper process is spawned.
 
-The reader uses `$XDG_STATE_HOME/omarchy/current/theme`, falling back to
-`~/.local/state/omarchy/current/theme`. `colors.toml` supplies palette colors;
-`shell.toml` supplies normal, hover, focus, selected, pressed, and text-selection
-control tokens plus the base font size. Validated values are converted into Qt
-styles or compositor render values; raw theme text is never inserted into a style
-sheet. Invalid or missing values use bounded defaults.
+Release supplies the final cursor position. The service resolves a zone and
+requests one placement. Lua validates the token and window, clears its transient
+reference before changing geometry, and expires unanswered releases. Modifier
+release, target closure, desktop changes and teardown cancel pending work.
+The timer stops and overlay unloads when the gesture ends.
 
-The compositor's current border settings take precedence over file defaults.
-Gradients retain their color stops, alpha, and angle. The editor follows the live
-border width and corner radius; the native overlay also uses Hyprland's rounding
-power. Labels use the same `monospace` fontconfig alias as the Omarchy shell.
-Small preview elements scale their geometry to remain usable. Numeric fields and
-dropdowns use a locally owned Qt base style and draw themed arrow glyphs over
-Qt's own subcontrol rectangles. Qt retains stepping, repeat, keyboard, wheel,
-accessibility, and popup behavior. Numeric rows use their current font metrics and intrinsic layout sizes. The
-sidebar scrolls when a short window or larger font leaves insufficient room,
-rather than compressing controls into each other.
+No snapped-window registry exists. Editor actions change definitions only, and
+saving cannot modify an active gesture's snapshot. Floating-window stacking
+remains the compositor's normal behavior.
 
-Control outlines use one antialiased closed path. Qt's stylesheet border reserves
-layout space but remains transparent, avoiding the brighter seams caused by
-overlapping translucent corner segments. Parent-owned, input-transparent outline
-widgets preserve standard Qt control classes, dialog roles, and input handling.
-Profile miniatures use the display pixel ratio; combo height includes the icon
-and padding. The popup uses a public QListView with a rounded themed surface.
+## Editor, storage and theme
 
-The open editor watches theme files and their parents, local Hyprland files,
-fontconfig, and the Omarchy window-gap toggle. Notifications start a single-shot
-200 ms debounce, then a short-lived asynchronous `hyprctl` query with a 1.5 second
-deadline. Watches are reattached after atomic replacements or a changed theme
-symlink. There is no recurring polling timer or resident query process. The
-native plugin refreshes theme values on an activated drag and configuration
-reload, without a background theme watcher.
+One editor is loaded on demand. Relaunching activates its existing draft. Save
+and close before updating, disabling or reloading the service: unloading also
+destroys that draft. Shell caches can remain after UI components unload; use
+measurements rather than visibility to assess memory release.
 
-This is a targeted theme adapter, not an implementation of every Omarchy shell
-component. Control border widths are uniform; per-side border-width overrides
-are not supported. Qt uses circular rounded corners rather than Hyprland's
-rounding-power shape inside the editor. Arbitrary theme-specific shell surface
-layouts and component overrides are outside this adapter.
+Profiles live at `$XDG_CONFIG_HOME/omarchy-zones/zones.conf`, defaulting to
+`~/.config/omarchy-zones/zones.conf`. Both v1 and v2 files are accepted; v1 converts
+only on successful save. Limits are 12 profiles, 64 zones per profile, a 128 KiB
+file and a minimum zone extent of 32 logical pixels. Invalid edits leave the
+previous layout intact.
 
-## Single editor lifecycle
+The store watches file notifications. Short-lived bounded commands validate
+regular files and UTF-8, then save through a private temporary file and atomic
+replacement. Paths and content use arguments/stdin, not shell-source interpolation.
+Save errors preserve pending edits. Atomic replacement is not a guarantee of
+crash durability across every filesystem failure.
 
-Before reading profiles, the editor acquires a kernel `flock` on the empty,
-owner-only `.editor.lock` beside `zones.conf`. The stable inode survives atomic
-profile saves and is never unlinked on exit. Kernel cleanup releases a crashed
-process's lock. A later launch can then remove the stale application socket.
+The UI imports `qs.Commons` and `qs.Ui` for Omarchy colors, borders, spacing,
+controls and fonts. Geometry uses logical monitor pixels and reserved space;
+compositor borders extend outside client rectangles.
 
-The activation socket lives in a private directory under `XDG_RUNTIME_DIR`.
-Its identity includes the canonical configuration path and desktop session.
-Peer credentials restrict requests to the same user. Input length, client count,
-connection lifetime, and startup waits are bounded. A busy or inaccessible owner
-causes an error rather than opening a competing editor. Different desktop sessions
-cannot edit the same configuration simultaneously.
+## Installation and ownership
 
-An activation request reveals the existing editor, preferring an open modal
-dialog. On Hyprland, a bounded, short-lived `hyprctl` query finds a mapped surface
-belonging to this editor process, then focuses its validated address. This runs
-only on an explicit relaunch and never moves or resizes other windows. The socket
-adds no recurring timer or helper process. It carries an activation command only;
-it does not transfer profiles, window assignments, or unsaved changes.
+`manifest.json` declares ID `omarchy-zones`, kind `service` and entry point
+`shell/Service.qml`. Setup adds the Lua integration and launcher, then enables
+the service. Omarchy add/update/remove commands do not execute repository hooks.
 
-Shutdown disconnects and destroys server-owned sockets before destroying their
-callback state, including sockets already queued for deferred deletion. Thirteen
-subprocess test groups pass under ASan, UBSan, and LeakSanitizer. They cover live
-connections during shutdown, startup races, crash recovery, stalled owners,
-malformed clients, and unsafe paths. A nonempty pre-existing lock file is rejected
-without changing its contents or permissions.
+The manager preserves unrelated configuration and rejects modified owned files.
+Setup removal disables the service and removes owned desktop integration while
+keeping profiles and plugin source. The official remove command can then delete
+or back up the remaining source directory. Test these properties when packaging
+changes; geometry tests cannot establish installer safety.
 
-## Safety and lifetime changes in 0.3
-
-- Rectangle edges and boundary arithmetic use 64-bit intermediates. Resized
-  extents are checked before narrowing. Invalid proposals leave layouts intact.
-- The editor validates logical monitor dimensions and reserved space before
-  converting coordinates. An oversized saved zone on a smaller display can be
-  resized or deleted; dragging it no longer passes an inverted range to
-  `std::clamp`. Canvas selections are checked before indexing.
-- Profile and theme reads open nonblocking descriptors, require regular files,
-  and enforce size limits while reading. A FIFO cannot stall the compositor or
-  editor, and file growth cannot bypass a prior size check.
-- Editor saves use atomic replacement with direct-write fallback disabled and
-  owner-only permissions. A symbolic-link destination is rejected. A failed
-  save preserves pending edits. Dynamic profile names and error text are shown
-  as plain text.
-- Canvas access now checks selection bounds; the existing stable display buffer
-  remains independent of profile-vector reallocations. Theme callbacks use a
-  guarded Qt pointer so they cannot call an editor that has already been destroyed.
-- Deferred compositor callbacks are tracked and cancelled during unload and
-  interrupted gestures. Snap callbacks use a weak target and recheck window,
-  monitor, lock, and drag state before touching geometry. Plugin event callbacks
-  catch C++ exceptions, cancel transient work, and report a bounded error.
-- Picker textures are bounded and released after the gesture. Resetting theme
-  state clears cached text textures so old colors cannot remain in the picker.
-- The installer validates the exact manifest shape, owned path set, and hashes;
-  a forged manifest cannot name arbitrary files for removal. Symlink and modified
-  file checks protect later user edits. The `update` command replaces binaries
-  without removing and recreating the desktop integration.
-
-These changes address concrete unsafe paths and make their boundaries easier to
-review. They are not a security audit or a guarantee that a C++ plugin cannot
-crash its host compositor. Hyprland's exact plugin ABI remains a requirement.
-
-The updater rolls back handled errors, including a rejected new plugin or a
-failed binary write. Its rollback snapshots live in process memory: abrupt
-termination or power loss between replacements is not a crash-durable
-transaction and can require manual recovery. It does not silently overwrite
-owned files that another process changes during the update.
-
-## Checks and limits
-
-The Qt integration test covers profile switching and editing, shared boundaries,
-legacy preservation, failed-save recovery, symlink rejection, private saves,
-FIFO rejection, invalid monitor geometry, oversized zones, and stale selections.
-Geometry/profile tests also exercise invalid and extreme input. Theme tests
-cover parsing and token fallback separately from rendering. Native-window
-results and resource measurements are recorded in [validation.md](validation.md).
-
-AddressSanitizer and UndefinedBehaviorSanitizer passed the editor test with
-leak detection disabled. LeakSanitizer was also run separately: the host's
-GTK platform theme reported fontconfig/Pango allocations at exit. Using the
-Fusion style and generic platform theme reduced the report to 183 bytes in four
-allocations from `libnvidia-glcore`. A minimal QApplication/QLabel-only program
-reproduced exactly the same 183-byte report. This does not establish a leak-free
-Qt/driver stack or prove the absence of every editor leak.
-
-The local comparison logs are `build/editor-profiles-sanitized.log` and
-`build/qt-sanitizer-baseline.log`; build artifacts are intentionally ignored by
-Git. Sanitizer tests use the offscreen Qt platform and complement, rather than
-replace, real native-window checks. Test input and measurement helpers are never
-installed as product services.
-
-The 0.3.1 outline and popup changes also passed 32 repeated create/show/theme
-refresh/input/destroy cycles under ASan and UBSan. A fresh minimal Qt label
-program reproduced the same 183-byte NVIDIA leak report when leak detection was
-enabled. Logs are under `build/render-fixed/`; these checks do not establish
-long-running or platform-wide leak freedom.
+See [validation](validation.md) for measured behavior and remaining limits.
