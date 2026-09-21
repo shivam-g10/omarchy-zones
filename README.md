@@ -3,7 +3,7 @@
 Dedicated window zones for large screens, inspired by Windows FancyZones.
 Create precise layouts, switch profiles while dragging, and snap windows once.
 
-**Plugin ID: `omarchy-zones` · Version: 0.5.1**
+**Plugin ID: `omarchy-zones` · Version: 0.5.2**
 
 ## Install
 
@@ -13,6 +13,7 @@ Ask your Omarchy agent:
 
 Uses Omarchy's existing shell and theme. No build, setup script or extra packages.
 Update or remove through Omarchy's plugin manager.
+On the tested Omarchy release, restart Shell from its menu if an update stays stale.
 
 ## Use
 

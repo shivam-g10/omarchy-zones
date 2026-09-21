@@ -12,8 +12,6 @@ import "Runtime.js" as Runtime
 
 // This component runs inside the existing Omarchy shell. Visuals load on demand;
 // the cursor timer runs only during an activated drag.
-// Ship one release directory. Its versioned URL invalidates Omarchy's component
-// cache when the plugin updates; manifest.json selects that directory.
 Item {
     id: root
     property bool enabled: true

@@ -7,8 +7,7 @@ import vm from "node:vm";
 import {spawnSync} from "node:child_process";
 
 const manifest = JSON.parse(fs.readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
-assert.equal(manifest.entryPoints.service, "qml/" + manifest.version + "/Service.qml");
-assert.deepEqual(fs.readdirSync(new URL("../qml/", import.meta.url)), [manifest.version]);
+assert.equal(manifest.entryPoints.service, "qml/Service.qml");
 const entry = new URL("../" + manifest.entryPoints.service, import.meta.url);
 const runtime = vm.createContext({});
 vm.runInContext(fs.readFileSync(new URL("Runtime.js", entry), "utf8")
