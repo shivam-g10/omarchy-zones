@@ -99,8 +99,8 @@ function number(token) {
     return result
 }
 
-// std::quoted escapes the next character literally. JSON.parse would interpret
-// sequences such as backslash+n differently and is not a compatible parser.
+// The profile format escapes the next character literally. JSON.parse would
+// interpret sequences such as backslash+n differently.
 function quoted(text) {
     var value = ""
     for (var i = 1; i < text.length; i++) {

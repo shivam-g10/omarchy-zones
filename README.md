@@ -3,7 +3,7 @@
 Dedicated window zones for large screens, inspired by Windows FancyZones.
 Create precise layouts, switch profiles while dragging, and snap windows once.
 
-**Plugin ID: `omarchy-zones` · Version: 0.5.0**
+**Plugin ID: `omarchy-zones` · Version: 0.5.1**
 
 ## Install
 
@@ -36,8 +36,6 @@ Idle memory change in two warm enabled/disabled checks, 21 September 2026:
 | Proportional memory (PSS) | −0.094 to +0.340 |
 
 Measured across the shared desktop fixture. The baseline retains UI caches;
-these are differences, not total plugin memory. [Results and limits](docs/validation.md).
+these are differences, not total plugin memory (measured on 0.5.0).
 
-[Development](CONTRIBUTING.md) · [Maintenance](docs/maintenance.md)
-
-No reuse license has been selected yet.
+[MIT license](LICENSE)

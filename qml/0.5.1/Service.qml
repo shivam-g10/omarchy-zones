@@ -10,8 +10,10 @@ import "Profiles.js" as Profiles
 import "Geometry.js" as Geometry
 import "Runtime.js" as Runtime
 
-// This component runs inside the existing Omarchy shell. Only its event
-// receiver remains idle; the visual tree and cursor timer exist during a drag.
+// This component runs inside the existing Omarchy shell. Visuals load on demand;
+// the cursor timer runs only during an activated drag.
+// Ship one release directory. Its versioned URL invalidates Omarchy's component
+// cache when the plugin updates; manifest.json selects that directory.
 Item {
     id: root
     property bool enabled: true
@@ -20,9 +22,6 @@ Item {
     property var runtimeSlots: ({binds: 0, rules: 0, timers: 0, subscriptions: 0})
     property bool active: false
     readonly property int samplingHz: 30
-    property bool traceEnabled: false
-    property var trace: []
-    property int droppedTrace: 0
     property int token: -1
     readonly property string owner: Date.now().toString() + "-" + Math.random().toString(16).slice(2)
     property var released: null
@@ -49,7 +48,6 @@ Item {
     property int requestToken: -1
     property var pending: null
     property int queries: 0
-    property real startedAt: 0
     property alias store: definitions
     property var editorMonitors: []
     property bool wantEditor: false
@@ -57,9 +55,6 @@ Item {
     property string editorLoadError: ""
     Store {
         id: definitions
-    }
-    ElapsedTimer {
-        id: clock
     }
 
     function openEditor() {
@@ -94,7 +89,6 @@ Item {
         runtimeReady = false;
         runtimeError = message;
         clear();
-        record("runtime_error", {error: message});
         if (wantEditor && !editorOpen)
             failEditor(message);
         // A lost activation acknowledgement must not leave active bindings.
@@ -177,21 +171,6 @@ Item {
         });
     }
 
-    function record(type, data) {
-        if (!traceEnabled)
-            return;
-        if (trace.length >= 24000) {
-            droppedTrace++;
-            return;
-        }
-        trace.push({
-            type: type,
-            ms: Number(clock.elapsedNs()) / 1000000,
-            wallMs: Date.now(),
-            token: token,
-            data: data || {}
-        });
-    }
     function send(command, kind, gestureToken) {
         if (waiting) {
             // Only a final release/control command can supersede a sample.
@@ -240,9 +219,6 @@ Item {
                     failEditor("No usable display is available.");
             } catch (error) {
                 failEditor("Cannot read display information: " + String(error));
-                record("editor_error", {
-                    error: String(error)
-                });
             }
         } else if ((active || released) && expected === token) {
             try {
@@ -269,28 +245,13 @@ Item {
                     updateHover(cursorX, cursorY);
                     if (released)
                         finishRelease();
-                    else {
+                    else
                         visuals.active = true;
-                        record("activation", {
-                            profile: profileIndex,
-                            zone: hoverIndex
-                        });
-                    }
                 } else if (kind === "cursor") {
                     var point = JSON.parse(text);
                     updateHover(point.x, point.y);
-                    record("sample", {
-                        x: point.x,
-                        y: point.y,
-                        profile: profileIndex,
-                        zone: hoverIndex
-                    });
                 }
             } catch (error) {
-                record("bad_response", {
-                    error: String(error),
-                    text: text
-                });
                 cancel("response-error");
             }
         }
@@ -306,7 +267,6 @@ Item {
             pending = null;
             waiting = false;
             socket.connected = false;
-            record("response_limit", {});
             cancel("response-limit");
             return;
         }
@@ -328,19 +288,11 @@ Item {
         cursorY = y;
         var localX = x - bounds.x, localY = y - bounds.y;
         var hit = Layouts.hitPicker(picker, profiles, localX, localY);
-        var previousProfile = profileIndex, previousZone = hoverIndex;
         if (hit) {
             profileIndex = hit.profile;
             hoverIndex = hit.zone;
         } else
             hoverIndex = Layouts.contains(picker, localX, localY) ? -1 : Layouts.hitZone(profiles[profileIndex] ? profiles[profileIndex].zones : [], localX, localY);
-        if (previousProfile !== profileIndex || previousZone !== hoverIndex)
-            record("highlight", {
-                profile: profileIndex,
-                zone: hoverIndex,
-                x: x,
-                y: y
-            });
     }
     function clear() {
         active = false;
@@ -354,13 +306,10 @@ Item {
         };
     }
     function cancel(reason) {
-        record("cancel", {
-            reason: reason
-        });
         var cancelledToken = token;
         clear();
         if (cancelledToken >= 0)
-            send(Runtime.cancel(owner, cancelledToken, "shell-cancel"), "control", -1);
+            send(Runtime.cancel(owner, cancelledToken, reason), "control", -1);
     }
     function finishRelease() {
         var finishedToken = token;
@@ -369,11 +318,6 @@ Item {
         var command = zone ? Runtime.apply(owner, token, {
             x: Math.round(bounds.x + zone.x), y: Math.round(bounds.y + zone.y), w: zone.w, h: zone.h
         }) : Runtime.cancel(owner, token, "no-zone");
-        record("snap_request", {
-            profile: profileIndex,
-            zone: hoverIndex,
-            rectangle: zone || null
-        });
         clear();
         send(command, "snap", finishedToken);
     }
@@ -401,7 +345,6 @@ Item {
             runtimeReady = enabled && incoming === 1;
             if (runtimeReady)
                 runtimeError = "";
-            record("runtime", {ready: runtimeReady, slots: runtimeSlots});
             if (runtimeReady && wantEditor && !editorOpen && definitions.ready)
                 send("j/monitors", "editor-monitors", -1);
             return;
@@ -417,16 +360,8 @@ Item {
             cursorX = Number(fields[5]);
             cursorY = Number(fields[6]);
             active = true;
-            startedAt = Number(clock.elapsedNs()) / 1000000;
-            record("begin", {
-                address: fields[3]
-            });
             send("j/monitors", "monitors", token);
         } else if (incoming === token && kind === "release") {
-            record("release", {
-                x: Number(fields[3]),
-                y: Number(fields[4])
-            });
             released = {
                 x: Number(fields[3]),
                 y: Number(fields[4])
@@ -438,9 +373,6 @@ Item {
             else if (!(waiting && purpose === "monitors" && requestToken === token))
                 cancel("no-monitor");
         } else if (incoming === token && kind === "cancel") {
-            record("cancel", {
-                reason: fields[3]
-            });
             clear();
         }
     }
@@ -466,11 +398,6 @@ Item {
             } else if (!connected)
                 root.complete();
         }
-        onError: error => {
-            root.record("socket_error", {
-                error: String(error)
-            });
-        }
     }
     Timer {
         id: requestTimeout
@@ -482,9 +409,6 @@ Item {
             root.pending = null;
             root.waiting = false;
             socket.connected = false;
-            root.record("timeout", {
-                purpose: root.purpose
-            });
             root.cancel("request-timeout");
             if (runtimeRequest)
                 root.failRuntime("The compositor did not answer the runtime request.");
@@ -496,7 +420,7 @@ Item {
         onTriggered: root.failRuntime("The compositor did not confirm Omarchy Zones activation.")
     }
     Timer {
-        interval: 33
+        interval: Math.round(1000 / root.samplingHz)
         running: root.active && visuals.active
         repeat: true
         onTriggered: {
@@ -586,12 +510,6 @@ Item {
     }
     IpcHandler {
         target: "omarchy-zones"
-        function setTracing(value: bool): string {
-            root.trace = [];
-            root.droppedTrace = 0;
-            root.traceEnabled = value;
-            return "ok";
-        }
         function openEditor(): string {
             root.openEditor();
             return "ok";
@@ -636,23 +554,11 @@ Item {
                 editorLoadError: root.editorLoadError,
                 savedProfiles: definitions.profiles.length,
                 visualsActive: visuals.active,
-                profileCount: profiles.length,
-                ms: Number(clock.elapsedNs()) / 1000000,
-                wallMs: Date.now()
+                profileCount: root.profiles.length
             });
-        }
-        function takeTrace(): string {
-            var result = JSON.stringify({
-                events: root.trace,
-                dropped: root.droppedTrace
-            });
-            root.trace = [];
-            root.droppedTrace = 0;
-            return result;
         }
     }
     Component.onCompleted: {
-        clock.restart();
         definitions.load();
         bootstrap();
     }

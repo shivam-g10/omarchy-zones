@@ -18,9 +18,17 @@ jobs:
       - name: Check models and native file storage
         run: |
           node tests/model_test.mjs
-          node tests/editor_callbacks_test.mjs
           python tests/store_test.py
       - name: Parse QML and Lua
         run: |
-          for file in qml/*/*.qml; do /usr/lib/qt6/bin/qmlformat "$file" >/dev/null; done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import subprocess
+
+          manifest = json.loads(Path("manifest.json").read_text())
+          runtime = Path(manifest["entryPoints"]["service"]).parent
+          for path in runtime.glob("*.qml"):
+              subprocess.run(["/usr/lib/qt6/bin/qmlformat", str(path)], check=True, stdout=subprocess.DEVNULL)
+          PY
           node tests/runtime_test.mjs

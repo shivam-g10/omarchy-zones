@@ -40,8 +40,6 @@ FloatingWindow {
     readonly property var zones: draft[profileIndex] && monitor ? Profiles.zonesFor(draft[profileIndex], monitor.name) : []
     readonly property var selection: zones[selected] || null
     readonly property bool dirty: JSON.stringify(draft) !== savedSnapshot || controller.store.fresh
-    readonly property bool modalOpen: modal.opened
-    signal definitionsEdited
 
     function clone(value) {
         return JSON.parse(JSON.stringify(value));
@@ -78,14 +76,23 @@ FloatingWindow {
         draft = next;
         selected = value.length ? Math.max(0, Math.min(selected, value.length - 1)) : -1;
         message = "Unsaved changes";
-        definitionsEdited();
         return true;
     }
     function editField(field, value) {
         if (!selection || !Number.isInteger(value))
             return false;
-        var r = selection;
-        var result = field === "x" || field === "y" ? Geometry.move(zones, selected, field === "x" ? value : r.x, field === "y" ? value : r.y, bounds) : Geometry.moveBoundary(zones, selected, field === "w" ? "right" : "bottom", (field === "w" ? r.x : r.y) + value, bounds);
+        var result;
+        if (field === "x" || field === "y") {
+            var x = field === "x" ? value : selection.x;
+            var y = field === "y" ? value : selection.y;
+            result = Geometry.move(zones, selected, x, y, bounds);
+        } else if (field === "w" || field === "h") {
+            var edge = field === "w" ? "right" : "bottom";
+            var origin = field === "w" ? selection.x : selection.y;
+            result = Geometry.moveBoundary(zones, selected, edge, origin + value, bounds);
+        } else {
+            return false;
+        }
         return replaceZones(result);
     }
     function starter(kind) {
@@ -93,7 +100,8 @@ FloatingWindow {
         if (kind === 0)
             return [];
         if (kind === 1) {
-            var w = Math.max(32, Math.floor(b.w * .75)), h = Math.max(32, Math.floor(b.h * .78));
+            var w = Math.max(Geometry.minimumExtent, Math.floor(b.w * .75));
+            var h = Math.max(Geometry.minimumExtent, Math.floor(b.h * .78));
             return [
                 {
                     x: b.x + Math.floor((b.w - w) / 2),
@@ -140,7 +148,7 @@ FloatingWindow {
         selected = zones.length ? 0 : -1;
     }
     function split(vertical) {
-        if (!selection || zoneCount() >= 64)
+        if (!selection || zoneCount() >= Profiles.maxZonesPerProfile)
             return;
         var next = clone(zones), first = clone(selection), second = clone(selection);
         if (vertical) {
@@ -227,7 +235,6 @@ FloatingWindow {
         draft = next;
         chooseProfile(index);
         message = "Unsaved changes";
-        definitionsEdited();
         modal.close();
     }
     function saveDefinitions() {
@@ -374,10 +381,6 @@ FloatingWindow {
             return m.focused;
         }));
         selected = zones.length ? 0 : -1;
-        controller.record("editor_ready", {
-            width: width,
-            height: height
-        });
     }
 
     Item {
@@ -444,14 +447,14 @@ FloatingWindow {
                     id: addProfile
                     text: "New profile"
                     bordered: true
-                    enabled: editor.draft.length < 12
+                    enabled: editor.draft.length < Profiles.maxProfiles
                     onClicked: editor.showDialog("new")
                 }
                 Ui.Button {
                     id: duplicateProfile
                     text: "Duplicate"
                     bordered: true
-                    enabled: editor.draft.length < 12
+                    enabled: editor.draft.length < Profiles.maxProfiles
                     onClicked: editor.showDialog("duplicate")
                 }
                 Ui.Button {
@@ -606,7 +609,7 @@ FloatingWindow {
                                 editor.replaceZones(next);
                         }
                         onReleased: {
-                            if (canvas.dragKind === "draw" && canvas.preview && editor.zoneCount() < 64) {
+                            if (canvas.dragKind === "draw" && canvas.preview && editor.zoneCount() < Profiles.maxZonesPerProfile) {
                                 var next = editor.clone(canvas.before);
                                 next.push(canvas.preview);
                                 if (editor.replaceZones(next))
@@ -707,7 +710,7 @@ FloatingWindow {
                         selected: editor.drawing
                         bordered: true
                         Layout.fillWidth: true
-                        enabled: editor.draft.length > 0 && editor.zoneCount() < 64
+                        enabled: editor.draft.length > 0 && editor.zoneCount() < Profiles.maxZonesPerProfile
                         onClicked: editor.drawing = !editor.drawing
                     }
                     Ui.Button {

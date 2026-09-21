@@ -29,21 +29,6 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-    onBackingWindowVisibleChanged: {
-        if (backingWindowVisible && controller.active)
-            controller.record("overlay_ready", {width: width, height: height, screen: screen ? screen.name : ""})
-    }
-
-    // This signal only establishes a Qt frame-swap callback timestamp. It does
-    // not prove when Hyprland composed or the physical monitor displayed it.
-    Connections {
-        target: root.contentItem.Window.window
-        enabled: root.controller.active && root.controller.traceEnabled
-        function onFrameSwapped() {
-            root.controller.record("frame", {profile: root.controller.profileIndex, zone: root.controller.hoverIndex})
-        }
-    }
-
     Item {
         id: usable
         x: root.originX
