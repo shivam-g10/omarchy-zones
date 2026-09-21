@@ -36,6 +36,19 @@ No installer or automatic whole-shell restart is needed.
 
 [Portable verification record](validation-0.5.0.json).
 
+## Live installation
+
+The previous development installation was backed up and its owned configuration
+block, launcher and receipt removed. Standard `omarchy plugin add --enable`
+then installed 0.5.0. All four profile definitions remained byte-identical;
+unrelated desktop settings and Hyprland files were preserved. Hyprland reported
+no configuration errors and the runtime was ready with zero cursor queries over
+three idle seconds. Existing window geometries were unchanged.
+
+A physical mouse/keyboard check was not repeated: the requested supervised
+input interval was not confirmed. The earlier physical feedback remains
+qualitative; the new native behavior evidence comes from the private fixture.
+
 ## Current idle and resource check
 
 Two reversed 30-second enabled/disabled pairs showed enabled CPU of
@@ -93,8 +106,8 @@ identifies a leak. Closing the UI does not immediately return all shell memory.
 
 ## Remaining limits
 
-- The physical display input check awaits a supervised interval; the private
-  fixture does not establish approximately 100 Hz physical presentation.
+- The physical display input check was not repeated; the private fixture does
+  not establish approximately 100 Hz physical presentation.
 - Native title-bar-only dragging parity, multiple monitors, fractional scaling,
   rotation, XWayland and session locking during a drag remain unverified.
 - Disabled Lua registrations remain until compositor reload. Abrupt shell death

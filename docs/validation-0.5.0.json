@@ -50,6 +50,18 @@
     "model_and_editor_callbacks": "passed",
     "runtime_mock_cycles": 100
   },
-  "live_installation": "pending",
-  "physical_input_check": "pending user availability"
+  "live_installation": {
+    "passed": true,
+    "standard_plugin_add": true,
+    "profile_count": 4,
+    "profiles_byte_identical": true,
+    "unrelated_configuration_preserved": true,
+    "old_managed_block_removed": true,
+    "old_launcher_and_receipt_removed": true,
+    "hyprland_config_errors": 0,
+    "idle_cursor_queries_over_3_seconds": 0,
+    "existing_window_geometry_changes": 0,
+    "rollback_backup_available": true
+  },
+  "physical_input_check": "Not repeated; a supervised physical-input interval was not confirmed."
 }
