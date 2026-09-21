@@ -187,6 +187,12 @@ Item {
             }
         } else if (kind === "runtime-bootstrap" && /^error:|^unknown/i.test(text.trim())) {
             failRuntime("Cannot activate Omarchy Zones: " + text.trim().slice(0, 240));
+        } else if (kind === "snap" && text.trim() === "ok") {
+            // Separate IPC round trips flush the floating configure before the
+            // final resize. Hyprland 0.56.2 can lose size acknowledgements when
+            // both changes share a configure serial. The Lua gesture owns the
+            // target and expires or cancels normally between these requests.
+            send(Runtime.finish(owner, expected), "snap-finish", expected);
         } else if (kind === "editor-monitors" && wantEditor && runtimeReady) {
             try {
                 editorMonitors = normalizeMonitors(JSON.parse(text));
@@ -254,7 +260,7 @@ Item {
                 JSON.parse(response);
                 socket.connected = false;
             } catch (_) {}
-        } else if (response.length > 0)
+        } else if (response.length > 0 && (purpose !== "snap" || response.trim() === "ok"))
             socket.connected = false;
     }
     function updateHover(x, y) {

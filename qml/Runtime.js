@@ -163,18 +163,31 @@ local ok, failure = pcall(function()
   state.apply = function(caller, token, x, y, width, height)
     if caller ~= state.owner then return end
     local gesture = state.gesture
-    if not gesture or gesture.token ~= token or not gesture.released then return end
+    if not gesture or gesture.token ~= token or not gesture.released or gesture.rectangle then return end
     local window = gesture.window
-    cancel("finished")
     for _, value in ipairs({x, y, width, height}) do
-      if type(value) ~= "number" or value ~= value or value % 1 ~= 0 or math.abs(value) > 65536 then return end
+      if type(value) ~= "number" or value ~= value or value % 1 ~= 0 or math.abs(value) > 65536 then
+        cancel("invalid-rectangle"); return
+      end
     end
-    if width < 1 or height < 1 or width > 32768 or height > 32768 then return end
-    pcall(function()
+    if width < 1 or height < 1 or width > 32768 or height > 32768 then cancel("invalid-rectangle"); return end
+    local prepared = pcall(function()
       if not window.mapped or window.group or window.fullscreen ~= 0 then return end
       hl.dispatch(hl.dsp.window.float({action = "enable", window = window}))
-      hl.dispatch(hl.dsp.window.resize({x = width, y = height, window = window}))
-      hl.dispatch(hl.dsp.window.move({x = x, y = y, window = window}))
+      gesture.rectangle = {x = x, y = y, w = width, h = height}
+    end)
+    if not prepared or not gesture.rectangle then cancel("target-unavailable") end
+  end
+  state.finish = function(caller, token)
+    if caller ~= state.owner then return end
+    local gesture = state.gesture
+    if not gesture or gesture.token ~= token or not gesture.released or not gesture.rectangle then return end
+    local window, rectangle = gesture.window, gesture.rectangle
+    cancel("finished")
+    pcall(function()
+      if not window.mapped or not window.floating or window.group or window.fullscreen ~= 0 then return end
+      hl.dispatch(hl.dsp.window.resize({x = rectangle.w, y = rectangle.h, window = window}))
+      hl.dispatch(hl.dsp.window.move({x = rectangle.x, y = rectangle.y, window = window}))
     end)
   end
   local function invoke(name)
@@ -258,4 +271,7 @@ function cancel(owner, token, reason) {
 }
 function apply(owner, token, rectangle) {
     return "/eval " + call(owner, "apply", [token, rectangle.x, rectangle.y, rectangle.w, rectangle.h]);
+}
+function finish(owner, token) {
+    return "/eval " + call(owner, "finish", [token]);
 }

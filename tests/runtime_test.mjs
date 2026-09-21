@@ -30,6 +30,7 @@ const commands = {
     disable: runtime.disable("owner-b"),
     cancel: runtime.cancel("owner-b", 1, "syntax-check"),
     apply: runtime.apply("owner-b", 1, {x: 0, y: 0, w: 640, h: 480}),
+    finish: runtime.finish("owner-b", 1),
     quoted: runtime.cancel('owner"\\\n\r\0', 1, 'reason"\\\n\r\0'),
     hostileOwner: runtime.bootstrap(hostile, []),
     hostileBinding: runtime.bootstrap("owner-b", [{...foreign, key: hostile, keycode: 74,
@@ -71,7 +72,7 @@ local function fresh()
   omarchy_zones_runtime = nil
   created = {binds = 0, rules = 0, timers = 0, subscriptions = 0, removed = 0}
   events, operations = {}, {}
-  target = {mapped = true, visible = true, fullscreen = 0, at = {x = 0, y = 0},
+  target = {mapped = true, visible = true, floating = false, fullscreen = 0, at = {x = 0, y = 0},
     size = {x = 800, y = 600}, address = "0xab"}
   cursor = {x = 400, y = 400}
 end
@@ -119,6 +120,7 @@ hl = {
   dispatch = function(action)
     local list = type(action) == "string" and events or operations
     list[#list + 1] = action
+    if type(action) == "table" and action.name == "float" then action.options.window.floating = true end
   end,
   dsp = {event = function(value) return value end, window = {}},
 }
@@ -147,8 +149,15 @@ state.binds[2].callback(); assert(state.gesture.token == 1)
 state.binds[4].callback(); assert(state.gesture.released and state.timer.enabled)
 state.apply("wrong-owner", 1, 0, 0, 500, 600); assert(state.gesture)
 state.apply("owner-a", 1, 0, 0, 500, 600)
+assert(state.gesture.rectangle.w == 500 and state.timer.enabled and #operations == 2)
+state.finish("wrong-owner", 1); state.finish("owner-a", 2)
+assert(#operations == 2)
+state.apply("owner-a", 1, 0, 0, 999, 999)
+assert(state.gesture.rectangle.w == 500 and #operations == 2)
+state.finish("owner-a", 1)
 assert(not state.gesture and not state.timer.enabled)
 assert(#operations == 4 and operations[2].name == "float" and operations[4].name == "move")
+state.finish("owner-a", 1); assert(#operations == 4)
 state.binds[2].callback()
 state.cancel("owner-a", "stale-token", state.gesture.token - 1); assert(state.gesture)
 state.subscriptions[1].callback(50, 0, 0); assert(not state.gesture)
@@ -206,6 +215,33 @@ for index = 0, 8 do
   run("invalidRectangle" .. index)
   assert(not state.gesture and not state.timer.enabled and #operations == 0)
 end
+-- The extra socket round trip must not retain or resize a canceled/replaced target.
+for _, reason in ipairs({"timeout", "closed", "cancel", "disabled", "replaced", "unmapped", "tiled", "grouped", "fullscreen"}) do
+  fresh(); run("next"); state = omarchy_zones_runtime
+  state.binds[2].callback(); state.binds[4].callback(); run("apply")
+  assert(state.gesture.rectangle and #operations == 1 and state.timer.enabled)
+  if reason == "timeout" then state.timer.callback()
+  elseif reason == "closed" then state.subscriptions[2].callback(target)
+  elseif reason == "cancel" then run("cancel")
+  elseif reason == "disabled" then run("disable")
+  elseif reason == "replaced" then state.binds[2].callback()
+  elseif reason == "unmapped" then target.mapped = false
+  elseif reason == "tiled" then target.floating = false
+  elseif reason == "grouped" then target.group = {}
+  elseif reason == "fullscreen" then target.fullscreen = 1 end
+  run("finish")
+  assert(#operations == 1, reason .. " resized a canceled target")
+  if reason == "replaced" then
+    assert(state.gesture.token == 2 and not state.gesture.rectangle)
+  else assert(not state.gesture and not state.timer.enabled) end
+end
+-- Focus changes cannot redirect the second phase to a different window.
+fresh(); run("next"); state = omarchy_zones_runtime
+state.binds[2].callback(); state.binds[4].callback(); run("apply")
+local captured = target
+target = {mapped = true, floating = true, fullscreen = 0}
+run("finish")
+assert(#operations == 3 and operations[2].options.window == captured and operations[3].options.window == captured)
 assert(__zones_injected == nil)
 print("Runtime: Lua input isolation, ownership, conflict refusal, failure cleanup, timer reuse and 100 bounded lifecycle cycles passed.")
 `;
