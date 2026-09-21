@@ -74,10 +74,10 @@ versioned-path packaging; normal gesture and storage paths were unchanged.
 
 ## Measurement methodology
 
-The [README performance table](../README.md#performance) is the single summary of
-measured results. [performance.json](performance.json) preserves the
-machine-readable values and scope. These values come from the recorded
-measurement run, not a new benchmark performed while preparing the release.
+The [README performance table](../README.md#performance) summarizes the current
+idle memory check above. The earlier benchmark's full measurements and scope
+remain in [performance.json](performance.json). The methodology below describes
+that earlier run, not a new benchmark performed while preparing the release.
 
 The fixture used real Wayland windows at 2560 × 1440 and 60 Hz, an empty bar and
 no unrelated first-party services. Cursor sampling was 30 Hz during activated
