@@ -5,6 +5,8 @@ Create precise layouts, switch profiles while dragging, and snap windows once.
 
 **Plugin ID: `omarchy-zones` · Version: 0.5.3**
 
+![Profile picker and highlighted snap zone](preview.png)
+
 ## Install
 
 Ask your Omarchy agent:
