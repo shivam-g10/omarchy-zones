@@ -1,7 +1,7 @@
 # Omarchy integration
 
 The root manifest uses schema version 1, ID `omarchy-zones`, kind `service` and
-entry point `shell/Service.qml`. The service runs inside the existing
+entry point `qml/0.5.0/Service.qml`. The service runs inside the existing
 `omarchy-shell`; editor and overlay components load on demand.
 
 ## Installation contract
@@ -10,29 +10,39 @@ Omarchy's Git installer clones and validates a repository, then optionally enabl
 its plugin. It executes no repository hooks or privileged commands. Updates
 fast-forward source; removal disables and removes the shell checkout.
 
-`scripts/setup.sh`, backed by `scripts/manage.py`, explicitly installs the
-additional desktop integration: a marked `dofile` block for `shell/bindings.lua`,
-a command launcher and an application entry. It then enables the service.
-Local-checkout installation copies runtime files into the user plugin directory;
-same-directory Git installation preserves the checkout.
+The standard lifecycle is sufficient:
 
-Run setup removal before `omarchy plugin remove omarchy-zones`. Setup removes
-owned integration and keeps profiles and plugin source; Omarchy can then remove
-the source directory. Profiles remain outside that directory. Setup honors XDG
-configuration/data paths, while Omarchy's Git installer uses its home-directory
-plugin path.
+```sh
+omarchy plugin add https://github.com/shivam-g10/omarchy-zones.git --enable
+omarchy plugin update omarchy-zones
+omarchy plugin remove omarchy-zones
+```
+
+The plugin registers its hotkeys through Hyprland's built-in Lua API at runtime.
+It does not write Hyprland configuration, install launcher files or run a setup
+script. Omarchy owns its normal plugin checkout and enabled-state changes.
+Profiles live outside the checkout, under `$XDG_CONFIG_HOME/omarchy-zones` or
+`~/.config/omarchy-zones`, and survive removal.
 
 ## Runtime access
 
 ```sh
-omarchy-zones
 omarchy-shell omarchy-zones openEditor
 omarchy-shell omarchy-zones status
 ```
 
-Enabling the service enables gesture handling. Disabling it cancels pending work
-and unloads its UI. Save and close the editor before disabling, updating,
-removing or reloading. Ordinary dragging and Exposé remain independent.
+Press **Super+Shift+F8** to open the editor. The optional IPC commands above call
+the same loaded service; no separate application launcher is installed.
+
+Enabling the service registers gesture handling. Disabling it cancels pending
+work, releases owned bindings and unloads its UI. Save and close the editor
+before disabling, updating, removing or reloading.
+
+Hyprland retains a bounded set of inert callback handles until its next normal
+configuration reload. Re-enabling reuses those handles; the plugin does not
+force a compositor reload. This bridge is needed because Quickshell's global
+shortcut API registers named endpoints, not physical key combinations or native
+window-drag observers.
 
 ## Identifier and marketplace
 

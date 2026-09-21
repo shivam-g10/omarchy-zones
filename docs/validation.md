@@ -1,42 +1,63 @@
 # Validation
 
-Evidence for Omarchy Zones 0.4.0, recorded on 21 September 2026. Tested software:
+Evidence for Omarchy Zones 0.5.0, recorded on 21 September 2026. Tested software:
 Omarchy 4.0.4-1, Hyprland 0.56.2, Quickshell 0.3.1 and Qt 6.11.2.
 
-## Native behavior
+## Native behavior and lifecycle
 
-The QML implementation passed 27 checks in a private Hyprland desktop with real
-Wayland windows. Coverage included numeric and mouse shared boundaries, drawing,
-splitting, deletion, profile operations, picker snaps, overlap rejection, one
-editor with an unsaved draft, unchanged sentinel windows, ordinary dragging,
-modifier cancellation, target closure, disable/reload cleanup and the editor
-hotkey. Invalid files, Unicode names and failed save-and-close were also checked.
+The final versioned runtime passed native checks with actual Wayland windows in
+a private Hyprland desktop at 2560 × 1440 and its reported 60 Hz refresh rate.
+The fixture uses the installed Omarchy shell loader, private configuration and
+runtime paths, the active theme, and a dedicated cgroup.
 
-The measured workload completed 40 normal snaps, 80 additional retention gestures
-and five maximum-layout snaps. Maximum layout was 12 profiles × 64 zones.
+- Standard add and enable alone register hotkeys and load the editor.
+- Twenty snaps select the original window and the intended profile and zone.
+- Modifier cancellation and target closure remove the overlay and stop queries.
+- Ordinary Super+drag retains native behavior.
+- Mouse and numeric shared-boundary edits grow one neighbor and shrink the other.
+- Reopening preserves one editor; verified saves never move existing windows.
+- Twenty disable/enable cycles retain four binds, two rules and one timer;
+  active subscriptions are five, disabled subscriptions zero.
+- One hundred release/cancellation cycles and disable during dragging clear state.
+- A foreign same-chord binding survives disable; re-enabling refuses the conflict.
+- Compositor reload, shell restart and abrupt shell termination recover without
+  applying a stale snap.
+- Standard plugin update executes changed QML from a new versioned directory
+  and snaps without restarting the shell. Removal preserves profile/config bytes.
 
-## Installation and live editor
+The fixture stopped with no remaining child processes and no changed parent
+desktop configuration. The separate model/editor callback tests, 13 real
+Quickshell storage tests and 100 mocked runtime lifecycle cycles also pass.
 
-Live **install → update → remove → reinstall** passed. Removal restored the owned
-Hyprland integration block exactly. Four saved profiles remained unchanged, and
-Hyprland reload re-enabled Lua gesture handling. Unrelated bindings, shell settings
-and Exposé files were unchanged; Exposé remained enabled.
+A loader cache issue was found during testing: same-path QML updates can retain
+old components on this Omarchy version. Versioned runtime directories give each
+release fresh component URLs, including its JavaScript and editor dependencies.
+No installer or automatic whole-shell restart is needed.
 
-The actual Wayland editor opened as a floating 1160 × 740 window. Repeated launch
-retained one instance, the four profile names matched saved definitions, and
-pre-existing window geometries stayed unchanged. The editor was closed afterward.
+[Portable verification record](validation-0.5.0.json).
 
-Fourteen sandboxed installer tests, nine actual offscreen storage tests and the
-JavaScript model/callback tests passed. Source parsing and official Omarchy
-manifest validation passed. A three-second live observation recorded zero idle
-cursor queries; it was not a CPU/RAM benchmark.
+## Current idle and resource check
 
-Physical dragging was not repeated during the final installation checkpoint.
-The earlier native checks exercised the same gesture logic. User feedback
-reported no noticeable lag on the physical desktop; that is qualitative feedback,
-not an instrumented latency measurement.
+Two reversed 30-second enabled/disabled pairs showed enabled CPU of
+0.0146–0.0152% of one core. Disabled runs were 0.0166–0.0348%; no idle CPU
+increase was detected. Enabled-minus-disabled PSS endpoints were −0.090 and
++0.324 MiB. Negative differences are noise, not memory savings.
 
-[Portable verification record](validation-0.4.0.json).
+No product helper processes or continuing idle cursor queries were observed.
+The fixture includes the shell, compositor, native clients and existing host
+helpers, including its plugin watcher. The disabled baseline followed warm use
+and retains the fixed Lua slots and shell caches; it is not a pristine compositor.
+
+Editor-visible CPU was 0.0471% of one core over 30 seconds. The 20 rapid native
+snaps consumed 15.62% over 2.48 seconds, about 19.39 CPU ms per gesture including
+reset/probe-triggered work. This rapid check is not the same workload as the
+older benchmark and cannot establish a performance improvement. PSS was about
+9.48 MiB above the last disabled endpoint 30 seconds after this activity; no
+long-session retention claim follows from this short run.
+
+[Raw resource JSON](performance-0.5.0.json) and [CSV](performance-0.5.0.csv) retain
+sparse endpoints. These samples preceded the final error-window cleanup and
+versioned-path packaging; normal gesture and storage paths were unchanged.
 
 ## Measurement methodology
 
@@ -72,13 +93,17 @@ identifies a leak. Closing the UI does not immediately return all shell memory.
 
 ## Remaining limits
 
-- Physical presentation around 100 Hz has not been instrumented.
-- Native title-bar-only dragging parity remains unverified; use Super+Shift drag.
-- Multiple physical monitors, fractional scaling, rotation, XWayland, session
-  locking during a drag and long-session retention remain unverified.
-- Complete GPU memory, pressure behavior and physical display timestamps were
-  unavailable in the measurement run.
-- The private fixture is not an entire production desktop benchmark.
+- The physical display input check awaits a supervised interval; the private
+  fixture does not establish approximately 100 Hz physical presentation.
+- Native title-bar-only dragging parity, multiple monitors, fractional scaling,
+  rotation, XWayland and session locking during a drag remain unverified.
+- Disabled Lua registrations remain until compositor reload. Abrupt shell death
+  can leave registrations until the shell recovers or the compositor reloads;
+  release handshakes expire and the dead shell cannot issue cursor queries.
+- Quickshell FileView allocates before size validation and follows symlinks with
+  platform permissions. It exposes no hard I/O cancellation deadline. A fresh
+  read verifies saves before they are acknowledged.
+- Complete GPU memory, pressure behavior, physical display timestamps and
+  long-session retention were not measured in this release check.
 
-Snapping remains one-time. No automatic placement, focus management, stacking
-policy or Exposé modification is part of the product.
+Snapping stores zone definitions only and never maintains window assignments.

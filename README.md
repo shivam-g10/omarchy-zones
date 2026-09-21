@@ -3,7 +3,7 @@
 Dedicated window zones for large screens, inspired by Windows PowerToys
 FancyZones. Draw a layout, choose a profile while dragging, and snap once.
 
-**Plugin ID: `omarchy-zones` · Version: 0.4.0**
+**Plugin ID: `omarchy-zones` · Version: 0.5.0**
 
 - **Precise layouts:** mouse controls, exact numeric values and shared boundaries.
 - **Quick profiles:** choose a saved layout from the picker during a drag.
@@ -16,22 +16,21 @@ FancyZones. Draw a layout, choose a profile while dragging, and snap once.
 
 > Install https://github.com/shivam-g10/omarchy-zones using its README.
 
-Requires Omarchy with its Quickshell shell, Lua-based Hyprland and Python 3.
-No compilation or additional package installation is needed on the
-[tested Omarchy version](docs/validation.md).
+Requires Omarchy with its Quickshell shell and Lua-based Hyprland. No build,
+setup script or additional package installation is needed. See
+[validation and compatibility](docs/validation.md).
 
 ```sh
-omarchy plugin add https://github.com/shivam-g10/omarchy-zones.git
-~/.config/omarchy/plugins/omarchy-zones/scripts/setup.sh install
+omarchy plugin add https://github.com/shivam-g10/omarchy-zones.git --enable
 ```
 
-If `add` asks about enabling, leave it disabled until setup. Setup installs the
-hotkeys and application launcher, then enables the service. It preserves saved
-profiles and unrelated desktop configuration. Exposé remains independent.
+Omarchy installs and enables the plugin. Hotkeys register in the running
+compositor; the plugin does not edit your Hyprland configuration or install
+launcher files. Saved profiles remain separate from the plugin checkout.
 
 ## Everyday use
 
-1. Press **Super+Shift+F8** or launch **Omarchy Zones** to edit profiles. Draw,
+1. Press **Super+Shift+F8** to edit profiles. Draw,
    split, move or resize zones. Shared edges grow one neighbor and shrink the
    other; overlaps are rejected.
 2. Hold **Super+Shift before dragging** a window with the left mouse button.
@@ -52,19 +51,17 @@ its unsaved in-memory draft.
 
 ```sh
 omarchy plugin update omarchy-zones
-~/.config/omarchy/plugins/omarchy-zones/scripts/setup.sh update
 ```
 
 **Remove**
 
 ```sh
-~/.config/omarchy/plugins/omarchy-zones/scripts/setup.sh remove
 omarchy plugin remove omarchy-zones
 ```
 
-Run setup removal before deleting the checkout: Omarchy does not run uninstall
-hooks. Setup removes owned desktop integration and keeps profiles at
-`~/.config/omarchy-zones/zones.conf`. Existing window positions remain unchanged.
+Removal disables the plugin and removes its checkout. Profiles stay at
+`~/.config/omarchy-zones/zones.conf`, or under `$XDG_CONFIG_HOME` when set.
+Existing window positions remain unchanged.
 
 ## Performance
 
@@ -73,7 +70,8 @@ Measured 21 September 2026 in two private native-desktop resource rounds at
 PSS covers the **whole fixture**, including shell, compositor, clients and
 helpers. Phase increments use each round's disabled endpoint; the replay row
 compares its stated gesture counts. CPU uses **100% = one core**. These are
-observed ranges, not guarantees or fresh release measurements.
+observed ranges, not guarantees. They predate the 0.5.0 lifecycle and storage
+changes and are not a fresh release benchmark.
 
 | Measurement | Observed result |
 | --- | ---: |
@@ -98,20 +96,21 @@ latency; five samples do not establish p95. CPU time per action is not elapsed
 response time. [Methodology and limits](docs/validation.md#measurement-methodology)
 · [Machine-readable measurements](docs/performance.json).
 
+The 0.5.0 lifecycle check found no detectable idle CPU increase and no added
+helper processes. [Current native validation and resource check](docs/validation.md#current-idle-and-resource-check).
+
 ## Development and diagnostics
 
 ```sh
-omarchy-zones
+omarchy-shell omarchy-zones openEditor
 omarchy-shell omarchy-zones status
 ```
 
-For a local development checkout, run `./scripts/setup.sh install`; setup copies
-only runtime files and installation support into the user plugin directory.
 See [development](CONTRIBUTING.md), [maintenance](docs/maintenance.md) and
 [Omarchy integration](docs/omarchy-integration.md).
 
-Earlier prototypes explored C++ and Rust; this release uses QML, JavaScript and
-Hyprland Lua.
+The runtime uses QML and JavaScript in Omarchy's existing shell, with a small
+in-memory bridge to Hyprland's built-in Lua API.
 
 ## License
 

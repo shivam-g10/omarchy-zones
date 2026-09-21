@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omarchy-zones",
   "name": "Omarchy Zones",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "shivam-g10",
   "description": "Dedicated window zones and profiles for large displays, inspired by FancyZones. Runs inside the existing Omarchy shell.",
   "homepage": "https://github.com/shivam-g10/omarchy-zones",
@@ -10,6 +10,6 @@
     "service"
   ],
   "entryPoints": {
-    "service": "shell/Service.qml"
+    "service": "qml/0.5.0/Service.qml"
   }
 }

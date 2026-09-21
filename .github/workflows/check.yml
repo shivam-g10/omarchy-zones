@@ -13,16 +13,14 @@ jobs:
     container: archlinux:base
     steps:
       - name: Install test tools
-        run: pacman -Syu --noconfirm --needed git nodejs python lua qt6-declarative
+        run: pacman -Syu --noconfirm --needed git nodejs python lua qt6-declarative quickshell
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Check models and installer
+      - name: Check models and native file storage
         run: |
           node tests/model_test.mjs
           node tests/editor_callbacks_test.mjs
-          python tests/install_test.py
+          python tests/store_test.py
       - name: Parse QML and Lua
         run: |
-          for file in shell/*.qml; do /usr/lib/qt6/bin/qmlformat "$file" >/dev/null; done
-          luac -p shell/bindings.lua
-          bash -n scripts/setup.sh
-          sh -n scripts/launch-editor.sh
+          for file in qml/*/*.qml; do /usr/lib/qt6/bin/qmlformat "$file" >/dev/null; done
+          node tests/runtime_test.mjs

@@ -7,7 +7,9 @@ import path from "node:path";
 import vm from "node:vm";
 import {fileURLToPath} from "node:url";
 
-const plugin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../shell");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+const plugin = path.dirname(path.join(root, manifest.entryPoints.service));
 function module(name, imports = {}) {
     const context = vm.createContext({...imports});
     vm.runInContext(fs.readFileSync(path.join(plugin, name), "utf8").replace(/^\.(?:pragma|import).*$/gm, ""), context);

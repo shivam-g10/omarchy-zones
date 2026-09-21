@@ -8,12 +8,16 @@ import qs.Ui as Ui
 import "Layouts.js" as Layouts
 import "Profiles.js" as Profiles
 import "Geometry.js" as Geometry
+import "Runtime.js" as Runtime
 
 // This component runs inside the existing Omarchy shell. Only its event
 // receiver remains idle; the visual tree and cursor timer exist during a drag.
 Item {
     id: root
     property bool enabled: true
+    property bool runtimeReady: false
+    property string runtimeError: ""
+    property var runtimeSlots: ({binds: 0, rules: 0, timers: 0, subscriptions: 0})
     property bool active: false
     readonly property int samplingHz: 30
     property bool traceEnabled: false
@@ -59,6 +63,8 @@ Item {
     }
 
     function openEditor() {
+        if (!enabled)
+            return;
         if (editorOpen) {
             // Only reactivate our own editor, preserving its unsaved draft.
             Hyprland.dispatch('function() for _, w in ipairs(hl.get_windows()) do if w.title == "Omarchy Zones" then hl.dispatch(hl.dsp.focus({window=w})) end end end');
@@ -67,7 +73,55 @@ Item {
         cancel("editor-open");
         editorLoadError = "";
         wantEditor = true;
+        if (runtimeError)
+            bootstrap();
         definitions.load();
+    }
+    function resetConnection() {
+        requestTimeout.stop();
+        waiting = false;
+        sent = false;
+        pending = null;
+        response = "";
+        request = "";
+        purpose = "";
+        requestToken = -1;
+        socket.connected = false;
+    }
+    function failRuntime(message) {
+        runtimeTimeout.stop();
+        resetConnection();
+        runtimeReady = false;
+        runtimeError = message;
+        clear();
+        record("runtime_error", {error: message});
+        if (wantEditor && !editorOpen)
+            failEditor(message);
+        // A lost activation acknowledgement must not leave active bindings.
+        send("/eval " + Runtime.disable(owner), "control", -1);
+    }
+    function bootstrap() {
+        resetConnection();
+        runtimeTimeout.stop();
+        clear();
+        runtimeReady = false;
+        runtimeError = "";
+        if (enabled)
+            send("j/binds", "runtime-preflight", -1);
+    }
+    function setEnabled(value) {
+        resetConnection();
+        runtimeTimeout.stop();
+        clear();
+        enabled = value;
+        runtimeReady = false;
+        if (value)
+            bootstrap();
+        else {
+            closeEditor();
+            editorLoadError = "";
+            send("/eval " + Runtime.disable(owner), "runtime-disable", -1);
+        }
     }
     function failEditor(message) {
         wantEditor = false;
@@ -167,7 +221,17 @@ Item {
         waiting = false;
         sent = false;
         response = "";
-        if (kind === "editor-monitors" && wantEditor) {
+        if (kind === "runtime-preflight" && enabled) {
+            try {
+                var command = Runtime.bootstrap(owner, JSON.parse(text));
+                runtimeTimeout.restart();
+                send(command, "runtime-bootstrap", -1);
+            } catch (error) {
+                failRuntime("Cannot activate Omarchy Zones: " + String(error));
+            }
+        } else if (kind === "runtime-bootstrap" && /^error:|^unknown/i.test(text.trim())) {
+            failRuntime("Cannot activate Omarchy Zones: " + text.trim().slice(0, 240));
+        } else if (kind === "editor-monitors" && wantEditor && runtimeReady) {
             try {
                 editorMonitors = normalizeMonitors(JSON.parse(text));
                 if (editorMonitors.length)
@@ -247,7 +311,7 @@ Item {
             return;
         }
         var ready = false;
-        if (purpose === "cursor" || purpose === "monitors" || purpose === "editor-monitors") {
+        if (purpose === "cursor" || purpose === "monitors" || purpose === "editor-monitors" || purpose === "runtime-preflight") {
             try {
                 JSON.parse(response);
                 ready = true;
@@ -296,13 +360,15 @@ Item {
         var cancelledToken = token;
         clear();
         if (cancelledToken >= 0)
-            send("/eval zones_shell.cancel('shell-cancel'," + cancelledToken + ")", "control", -1);
+            send(Runtime.cancel(owner, cancelledToken, "shell-cancel"), "control", -1);
     }
     function finishRelease() {
         var finishedToken = token;
         updateHover(released.x, released.y);
         var zone = profiles[profileIndex] && profiles[profileIndex].zones[hoverIndex];
-        var command = zone ? "/eval zones_shell.apply(" + [token, Math.round(bounds.x + zone.x), Math.round(bounds.y + zone.y), zone.w, zone.h].join(",") + ")" : "/eval zones_shell.cancel('no-zone'," + token + ")";
+        var command = zone ? Runtime.apply(owner, token, {
+            x: Math.round(bounds.x + zone.x), y: Math.round(bounds.y + zone.y), w: zone.w, h: zone.h
+        }) : Runtime.cancel(owner, token, "no-zone");
         record("snap_request", {
             profile: profileIndex,
             zone: hoverIndex,
@@ -314,28 +380,37 @@ Item {
     function handle(event) {
         if (event.name === "configreloaded") {
             // Hyprland replaces its Lua state on reload. Discard old requests
-            // before restoring this service's ownership; keep the editor draft.
-            requestTimeout.stop();
-            waiting = false;
-            sent = false;
-            pending = null;
-            response = "";
-            request = "";
-            purpose = "";
-            requestToken = -1;
-            socket.connected = false;
-            clear();
-            send("/eval if zones_shell then zones_shell.enable(" + (enabled ? "true" : "false") + "," + JSON.stringify(owner) + ") end", "control", -1);
+            // before rebuilding this service's runtime; keep the editor draft.
+            runtimeSlots = {binds: 0, rules: 0, timers: 0, subscriptions: 0};
+            bootstrap();
             return;
         }
         if (event.name !== "custom" || !event.data.startsWith("omarchy-zones,"))
             return;
-        var fields = event.data.split(","), kind = fields[1], incoming = Number(fields[2]);
-        if (kind === "editor" && enabled) {
+        var fields = event.data.split(",");
+        if (fields.pop() !== owner)
+            return;
+        var kind = fields[1], incoming = Number(fields[2]);
+        if (kind === "runtime-error") {
+            failRuntime(fields[2] || "Cannot activate the compositor runtime.");
+            return;
+        }
+        if (kind === "runtime") {
+            runtimeTimeout.stop();
+            runtimeSlots = {binds: Number(fields[3]), rules: Number(fields[4]), timers: Number(fields[5]), subscriptions: Number(fields[6])};
+            runtimeReady = enabled && incoming === 1;
+            if (runtimeReady)
+                runtimeError = "";
+            record("runtime", {ready: runtimeReady, slots: runtimeSlots});
+            if (runtimeReady && wantEditor && !editorOpen && definitions.ready)
+                send("j/monitors", "editor-monitors", -1);
+            return;
+        }
+        if (kind === "editor" && enabled && runtimeReady) {
             openEditor();
             return;
         }
-        if (kind === "begin" && enabled && definitions.ready) {
+        if (kind === "begin" && enabled && runtimeReady && definitions.ready) {
             clear();
             token = incoming;
             monitorName = fields[4];
@@ -401,6 +476,7 @@ Item {
         id: requestTimeout
         interval: 250
         onTriggered: {
+            var runtimeRequest = root.purpose.indexOf("runtime-") === 0;
             if (root.purpose === "editor-monitors" && root.wantEditor)
                 root.failEditor("The compositor did not answer the display request.");
             root.pending = null;
@@ -410,7 +486,14 @@ Item {
                 purpose: root.purpose
             });
             root.cancel("request-timeout");
+            if (runtimeRequest)
+                root.failRuntime("The compositor did not answer the runtime request.");
         }
+    }
+    Timer {
+        id: runtimeTimeout
+        interval: 1000
+        onTriggered: root.failRuntime("The compositor did not confirm Omarchy Zones activation.")
     }
     Timer {
         interval: 33
@@ -493,7 +576,7 @@ Item {
     Connections {
         target: definitions
         function onLoaded() {
-            if (root.wantEditor && !root.editorOpen)
+            if (root.wantEditor && !root.editorOpen && root.runtimeReady)
                 root.send("j/monitors", "editor-monitors", -1);
         }
         function onErrorChanged() {
@@ -529,9 +612,7 @@ Item {
             });
         }
         function enable(value: bool): string {
-            root.clear();
-            root.enabled = value;
-            root.send("/eval zones_shell.enable(" + (value ? "true" : "false") + "," + JSON.stringify(root.owner) + ")", "control", -1);
+            root.setEnabled(value);
             return "ok";
         }
         function status(): string {
@@ -542,10 +623,13 @@ Item {
                 waiting: root.waiting,
                 hz: root.samplingHz,
                 enabled: root.enabled,
+                runtimeReady: root.runtimeReady,
+                runtimeError: root.runtimeError,
+                runtimeSlots: root.runtimeSlots,
                 profile: root.profileIndex,
                 zone: root.hoverIndex,
                 bounds: root.bounds,
-                ready: definitions.ready,
+                ready: definitions.ready && root.runtimeReady,
                 storeBusy: definitions.busy,
                 storeError: definitions.error,
                 editorOpen: root.editorOpen,
@@ -570,11 +654,11 @@ Item {
     Component.onCompleted: {
         clock.restart();
         definitions.load();
-        send("/eval zones_shell.enable(true," + JSON.stringify(owner) + ")", "control", -1);
+        bootstrap();
     }
     Component.onDestruction: {
         // Dispatch uses the shell's existing IPC facility during destruction.
         // Lua also expires a released gesture if the whole shell is killed.
-        Hyprland.dispatch("function() if zones_shell then zones_shell.enable(false," + JSON.stringify(owner) + ") end end");
+        Hyprland.dispatch("function() " + Runtime.disable(owner) + " end");
     }
 }

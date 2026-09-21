@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Exercise Store.qml through real offscreen Quickshell and private fixture files.
 
-Python belongs to this test harness only. Product persistence uses installed
-coreutils commands through Quickshell.Process.
+Python belongs to this test harness only. Product persistence uses asynchronous
+Quickshell FileView operations, including a fresh read to verify each save.
 """
 
 import json
 import os
 from pathlib import Path
-import stat
 import subprocess
 import tempfile
 import time
 import unittest
 
-PLUGIN = Path(__file__).resolve().parents[1] / "shell"
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = (ROOT / json.loads((ROOT / "manifest.json").read_text())["entryPoints"]["service"]).parent
 VALID = 'omarchy-zones-v2\nprofile "Default"\nDP-2 0 0 640 480\n'
 
 
@@ -42,25 +42,14 @@ class StoreTest(unittest.TestCase):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_bytes(contents if isinstance(contents, bytes) else contents.encode())
 
-    def run_store(self, action, condition):
+    def run_qml(self, body):
         source = f'''import QtQuick
 import Quickshell
+import Quickshell.Io
 import {json.dumps(PLUGIN.as_uri())} as Zones
 ShellRoot {{
-    property bool armed: false
-    Zones.Store {{
-        id: store
-        path: {json.dumps(str(self.path))}
-        onBusyChanged: if (!busy && armed) Qt.callLater(check)
-    }}
-    function check() {{
-        if (store.busy) return
-        if ({condition}) console.log("STORE_PASS")
-        else console.error("STORE_FAIL", store.error, JSON.stringify(store.profiles))
-        Qt.quit()
-    }}
+    {body}
     Timer {{ interval: 8500; running: true; onTriggered: {{ console.error("STORE_TIMEOUT"); Qt.quit() }} }}
-    Component.onCompleted: {{ armed = true; if (!({action})) Qt.callLater(check) }}
 }}
 '''
         qml = self.base / "shell.qml"
@@ -74,9 +63,25 @@ ShellRoot {{
         self.assertNotIn("STORE_TIMEOUT", output, output)
         self.assert_no_helpers()
 
+    def run_store(self, action, condition):
+        self.run_qml(f'''
+    property bool armed: false
+    Zones.Store {{
+        id: store
+        path: {json.dumps(str(self.path))}
+        onBusyChanged: if (!busy && armed) Qt.callLater(check)
+    }}
+    function check() {{
+        if (store.busy) return
+        if ({condition}) console.log("STORE_PASS")
+        else console.error("STORE_FAIL", store.error, JSON.stringify(store.profiles))
+        Qt.quit()
+    }}
+    Component.onCompleted: {{ armed = true; if (!({action})) Qt.callLater(check) }}
+''')
+
     def assert_no_helpers(self):
-        # A child killed during unload has at most the command's 4s deadline.
-        # Successful operations should leave no matching helper immediately.
+        # The fixture and its unique runtime must leave no process behind.
         marker = f"XDG_RUNTIME_DIR={self.runtime}".encode()
         remaining = []
         for entry in Path("/proc").iterdir():
@@ -94,18 +99,16 @@ ShellRoot {{
         self.assertFalse(self.path.exists())
 
     def test_unicode_read(self):
-        self.fixture(VALID.replace("Default", "अध्ययन"))
-        self.run_store("store.load()", 'store.ready && !store.error && store.profiles[0].name === "अध्ययन"')
+        self.fixture(VALID.replace("Default", "étude अध्ययन 🪟"))
+        self.run_store("store.load()", 'store.ready && !store.error && store.profiles[0].name === "étude अध्ययन 🪟"')
 
-    def test_private_atomic_write_and_literal_arguments(self):
+    def test_atomic_write_to_missing_directory_and_literal_paths(self):
         self.path = self.base / 'space $(touch SHOULD_NOT_EXIST)' / 'zones.conf'
         definitions = [{"name": 'Quotes " $() `literal` \\ अध्ययन', "layouts": [
             {"monitor": "DP-2", "zones": [{"x": 0, "y": 0, "w": 640, "h": 480}]}]}]
         self.run_store("store.save(" + json.dumps(definitions) + ")", "store.ready && !store.error && !store.fresh")
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
-        self.assertEqual(stat.S_IMODE(self.path.parent.stat().st_mode), 0o700)
         self.assertIn('DP-2 0 0 640 480', self.path.read_text())
-        self.assertEqual(list(self.path.parent.glob('.zones-save.*')), [])
+        self.assertEqual(list(self.path.parent.iterdir()), [self.path])
         self.assertFalse((self.base / "SHOULD_NOT_EXIST").exists())
 
     def test_fifo_refused_without_waiting(self):
@@ -115,22 +118,44 @@ ShellRoot {{
         self.run_store("store.load()", "!store.ready && store.error.length > 0")
         self.assertLess(time.monotonic() - start, 3)
 
-    def test_symlink_read_and_write_refused(self):
+    def test_symlink_uses_fileview_target_semantics(self):
         self.path.parent.mkdir()
         target = self.base / "sentinel"
         target.write_text(VALID)
         self.path.symlink_to(target)
-        self.run_store("store.load()", "!store.ready && store.error.length > 0")
-        self.run_store('store.save([{name:"New",layouts:[]}])', "!store.ready && store.error.length > 0")
-        self.assertEqual(target.read_text(), VALID)
+        self.run_store("store.load()", "store.ready && !store.error")
+        self.run_store('store.save([{name:"New",layouts:[]}])', "store.ready && !store.error")
+        self.assertEqual(target.read_text(), 'omarchy-zones-v2\nprofile "New"\n')
         self.assertTrue(self.path.is_symlink())
 
     def test_oversize_and_invalid_utf8_refused(self):
-        for contents in [VALID.encode() + b"# comment\n" * 14000,
-                         b'omarchy-zones-v2\nprofile "\xff"\n']:
-            self.fixture(contents)
-            self.run_store("store.load()", "!store.ready && store.error.length > 0")
-            self.assertEqual(self.path.read_bytes(), contents)
+        invalid = [b"\xff", b"\x80", b"\xc0\xaf", b"\xe0\x80\x80", b"\xed\xa0\x80",
+                   b"\xf0\x80\x80\x80", b"\xf4\x90\x80\x80", b"\xf0\x9f\xaa", b"\xc2A"]
+        for contents in [VALID.encode() + b"# comment\n" * 14000] + [
+                b'omarchy-zones-v2\nprofile "' + value + b'"\n' for value in invalid]:
+            with self.subTest(contents=contents[:64]):
+                self.fixture(contents)
+                self.run_store("store.load()", "!store.ready && store.error.length > 0")
+                self.assertEqual(self.path.read_bytes(), contents)
+
+    def test_legacy_format_and_exact_size_limit(self):
+        self.fixture('omarchy-zones-v1\nDP-2 0 0 640 480\n')
+        self.run_store("store.load()", 'store.ready && store.legacy && store.profiles[0].name === "Default"')
+        size = 131072
+        contents = VALID.encode()
+        full_lines, remainder = divmod(size - len(contents), 512)
+        contents += (b"#" + b"x" * 510 + b"\n") * full_lines
+        contents += (b"#" + b"x" * (remainder - 1)) if remainder else b""
+        self.fixture(contents)
+        self.assertEqual(len(contents), size)
+        self.run_store("store.load()", "store.ready && !store.error")
+
+    def test_invalid_save_preserves_existing_file(self):
+        self.fixture(VALID)
+        self.run_store('store.save([{name:"Bad",layouts:[{monitor:"DP-2",zones:['
+                       '{x:0,y:0,w:100,h:100},{x:50,y:0,w:100,h:100}]}]}])',
+                       '!store.busy && store.error.length > 0')
+        self.assertEqual(self.path.read_text(), VALID)
 
     def test_nonregular_save_target_preserved(self):
         self.path.mkdir(parents=True)
@@ -173,33 +198,81 @@ ShellRoot {{
         self.assertIn("STORE_PASS", "".join(output), "".join(output))
         self.assert_no_helpers()
 
-    def test_supervisor_cleans_children_after_qml_unload(self):
-        # Exercise the production supervisor with an intentionally slow command.
-        # QML destruction kills only the immediate Process child; timeout must
-        # remain alive long enough to terminate the entire slow command group.
-        qml = self.base / "shell.qml"
-        qml.write_text(f'''import QtQuick
-import Quickshell
-import Quickshell.Io
-import {json.dumps(PLUGIN.as_uri())} as Zones
-ShellRoot {{
-    Zones.Store {{ id: store; path: {json.dumps(str(self.path))} }}
-    Process {{
-        id: slow
-        command: ["/usr/bin/bash", "-c", store.superviseScript, "zones-test-supervisor",
-                  "/usr/bin/bash", "-c", "sleep 30 & wait"]
-        running: true
-        onStarted: stop.restart()
+    def test_readback_mismatch_does_not_acknowledge_save(self):
+        # Replace the file exactly between the completed write and verification.
+        # This exercises real FileView I/O, including rejection of a false success.
+        self.fixture(VALID)
+        self.run_qml(f'''
+    property int stage: 0
+    property int acknowledgments: 0
+    FileView {{ id: replacement; path: {json.dumps(str(self.path))}; preload: false; blockWrites: true }}
+    Zones.Store {{
+        id: store
+        path: {json.dumps(str(self.path))}
+        onLoaded: if (stage === 0) {{ stage = 1; save([{{name:"Desired",layouts:[]}}]) }}
+        onOperationChanged: if (operation === "verify") replacement.setText({json.dumps(VALID.replace('Default', 'External'))})
+        onSaved: acknowledgments++
+        onBusyChanged: if (!busy && stage === 1 && error) Qt.callLater(check)
     }}
-    Timer {{ id: stop; interval: 150; onTriggered: Qt.quit() }}
-}}
+    function check() {{
+        if (acknowledgments === 0 && store.profiles[0].name === "Default" && store.error.indexOf("verified") >= 0)
+            console.log("STORE_PASS")
+        else console.error("STORE_FAIL", store.error, JSON.stringify(store.profiles))
+        Qt.quit()
+    }}
+    Component.onCompleted: store.load()
 ''')
-        result = subprocess.run(["qs", "-p", str(qml)], env=self.environment,
-                                text=True, capture_output=True, timeout=3)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        # This is a bounded test wait, never a product polling loop.
-        time.sleep(5.1)
-        self.assert_no_helpers()
+        self.assertIn('profile "External"', self.path.read_text())
+
+    def test_repeated_identical_save_uses_disk_and_snapshot(self):
+        self.run_qml(f'''
+    property int acknowledgments: 0
+    property var draft: [{{name:"Desired",layouts:[]}}]
+    FileView {{ id: replacement; path: {json.dumps(str(self.path))}; preload: false; blockWrites: true }}
+    Zones.Store {{
+        id: store
+        path: {json.dumps(str(self.path))}
+        onSaved: {{
+            acknowledgments++
+            if (acknowledgments === 1) {{
+                replacement.setText({json.dumps(VALID.replace('Default', 'External'))})
+                Qt.callLater(repeatSave)
+            }} else {{
+                if (profiles[0].name === "Desired" && draft[0].name === "Newer") console.log("STORE_PASS")
+                else console.error("STORE_FAIL", JSON.stringify(profiles))
+                Qt.quit()
+            }}
+        }}
+        onErrorChanged: if (error) {{ console.error("STORE_FAIL", error); Qt.quit() }}
+    }}
+    function repeatSave() {{
+        draft[0].name = "Desired"
+        store.save(draft)
+        draft[0].name = "Newer"
+    }}
+    Component.onCompleted: repeatSave()
+''')
+        self.assertEqual(self.path.read_text(), 'omarchy-zones-v2\nprofile "Desired"\n')
+
+    def test_save_watcher_settles_without_reload_loop(self):
+        self.run_qml(f'''
+    property int loads: 0
+    property int settledLoads: -1
+    property int acknowledgments: 0
+    Zones.Store {{
+        id: store
+        path: {json.dumps(str(self.path))}
+        onLoaded: loads++
+        onSaved: {{ acknowledgments++; settle.restart(); check.restart() }}
+    }}
+    Timer {{ id: settle; interval: 200; onTriggered: settledLoads = loads }}
+    Timer {{ id: check; interval: 450; onTriggered: {{
+        if (!store.busy && !store.error && acknowledgments === 1 && settledLoads === loads) console.log("STORE_PASS")
+        else console.error("STORE_FAIL", loads, settledLoads, acknowledgments, store.error)
+        Qt.quit()
+    }} }}
+    Component.onCompleted: store.save([{{name:"Desired",layouts:[]}}])
+''')
 
 
 if __name__ == "__main__":
