@@ -20,6 +20,7 @@ const owned = [
     {key: "mouse:272", modmask: 0, arg: "4", release: true},
 ].map(binding => ({keycode: 0, submap: "", release: false, dispatcher: "__lua", ...binding}));
 const foreign = {...owned[2], submap: "foreign", arg: "999"};
+const hostile = '\"; __zones_injected = true; --\\\n\r\0';
 const commands = {
     first: runtime.bootstrap("owner-a", []),
     next: runtime.bootstrap("owner-b", []),
@@ -30,7 +31,21 @@ const commands = {
     cancel: runtime.cancel("owner-b", 1, "syntax-check"),
     apply: runtime.apply("owner-b", 1, {x: 0, y: 0, w: 640, h: 480}),
     quoted: runtime.cancel('owner"\\\n\r\0', 1, 'reason"\\\n\r\0'),
+    hostileOwner: runtime.bootstrap(hostile, []),
+    hostileBinding: runtime.bootstrap("owner-b", [{...foreign, key: hostile, keycode: 74,
+        submap: hostile, dispatcher: hostile, arg: hostile}]),
+    hostileReason: runtime.cancel("owner-b", 1, hostile),
+    hostileMember: runtime.call("owner-b", "disable) then __zones_injected=true end --", []),
+    hostileToken: runtime.apply("owner-b", hostile, {x: 0, y: 0, w: 640, h: 480}),
 };
+// Malformed numeric fields must be rejected by Lua before window operations.
+const invalidRectangles = [
+    {x: hostile}, {x: NaN}, {x: Infinity}, {x: 0.5}, {x: 65537},
+    {w: hostile}, {w: 0}, {w: 32769}, {h: null},
+];
+invalidRectangles.forEach((rectangle, index) => {
+    commands["invalidRectangle" + index] = runtime.apply("owner-b", 1, {x: 0, y: 0, w: 640, h: 480, ...rectangle});
+});
 for (const command of Object.values(commands)) {
     const result = spawnSync("luac", ["-p", "-"], {input: lua(command), encoding: "utf8"});
     assert.equal(result.status, 0, result.stderr || String(result.error));
@@ -43,6 +58,13 @@ assert.throws(() => runtime.conflicts(Array(65).fill(foreign)), /Too many/);
 
 const payloads = "local payloads = " + runtime.literal(Object.fromEntries(
     Object.entries(commands).map(([key, command]) => [key, lua(command)]))) + "\n";
+// Compare against independently encoded UTF-8 bytes, not the quoting helper.
+const byteString = value => "string.char(" + [...Buffer.from(value)].join(",") + ")";
+const strings = [hostile, "backslash\\9", "अध्ययन 🪟", '[[\"]]; __zones_injected=true; --',
+    Array.from({length: 32}, (_, i) => String.fromCharCode(i)).join("") + "\x7f123"];
+const literalChecks = strings.map(value => "assert(" + runtime.quote(value) + " == " + byteString(value) + ")").join("\n")
+    + "\nlocal escaped = " + runtime.literal({[hostile]: [hostile, true, 23]})
+    + "\nassert(escaped[" + byteString(hostile) + "][1] == " + byteString(hostile) + ")\n";
 const checks = String.raw`
 local created, events, operations, target, cursor
 local function fresh()
@@ -170,8 +192,23 @@ end
 run("first"); state = omarchy_zones_runtime; disabled(state)
 assert(created.binds == 4 and created.rules == 1 and created.timers == 0)
 hl.window_rule = rule; run("next"); bounded(); run("disable"); disabled(state)
-print("Runtime: generated Lua syntax, ownership, conflict refusal, failure cleanup, timer reuse and 100 bounded lifecycle cycles passed.")
+-- Attack-like input is data across every interpolation boundary.
+fresh(); run("hostileOwner"); assert(omarchy_zones_runtime.enabled)
+fresh(); run("hostileBinding"); disabled(omarchy_zones_runtime)
+fresh(); run("next"); state = omarchy_zones_runtime
+run("hostileMember"); assert(state.enabled)
+state.binds[2].callback(); state.binds[4].callback()
+run("hostileToken"); assert(state.gesture and #operations == 0)
+run("hostileReason"); assert(not state.gesture and #operations == 0)
+for index = 0, 8 do
+  fresh(); run("next"); state = omarchy_zones_runtime
+  state.binds[2].callback(); state.binds[4].callback()
+  run("invalidRectangle" .. index)
+  assert(not state.gesture and not state.timer.enabled and #operations == 0)
+end
+assert(__zones_injected == nil)
+print("Runtime: Lua input isolation, ownership, conflict refusal, failure cleanup, timer reuse and 100 bounded lifecycle cycles passed.")
 `;
-const result = spawnSync("lua", ["-"], {input: payloads + checks, encoding: "utf8", timeout: 10000});
+const result = spawnSync("lua", ["-"], {input: literalChecks + payloads + checks, encoding: "utf8", timeout: 10000});
 assert.equal(result.status, 0, result.stderr || String(result.error));
 process.stdout.write(result.stdout);

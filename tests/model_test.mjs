@@ -50,17 +50,13 @@ const definitions = [
     {name: "case", layouts: []},
 ];
 const encoded = Profiles.serialize(definitions);
-assert.equal(Profiles.serialize(Profiles.parse(encoded).profiles), encoded);
-assert.equal(Profiles.parse(encoded).legacy, false);
-assert.equal(Profiles.zonesFor(Profiles.parse(encoded).profiles[2], "__proto__").length, 1);
-const legacy = Profiles.parse("omarchy-zones-v1\r\n# comment\r\nDP-2 +0 -0 +32 32\r\nDISCONNECTED 32 0 32 32");
-assert.equal(legacy.legacy, true);
-assert.equal(legacy.profiles[0].name, "Default");
-assert.equal(legacy.profiles[0].layouts.length, 2);
-assert.equal(Profiles.parse('omarchy-zones-v2\nprofile "a\\n"\n').profiles[0].name, "an");
-assert.equal(Profiles.parse("omarchy-zones-v1\n").profiles[0].layouts.length, 0);
+assert.equal(Profiles.serialize(Profiles.parse(encoded)), encoded);
+assert.equal(Profiles.zonesFor(Profiles.parse(encoded)[2], "__proto__").length, 1);
+const signed = Profiles.parse('omarchy-zones-v2\r\nprofile "Default"\r\n# comment\r\nDP-2 +0 -0 +32 32\r\nDISCONNECTED 32 0 32 32');
+assert.equal(signed[0].layouts.length, 2);
+assert.equal(Profiles.parse('omarchy-zones-v2\nprofile "a\\n"\n')[0].name, "an");
 for (const text of [
-    "", "omarchy-zones-v1", "omarchy-zones-v3\n", "omarchy-zones-v2\n",
+    "", "omarchy-zones-v2", "omarchy-zones-v3\n", "omarchy-zones-v2\n",
     'omarchy-zones-v2\nprofile Name\n', 'omarchy-zones-v2\nprofile "Unclosed\n',
     'omarchy-zones-v2\nprofile "Name" junk\n', 'omarchy-zones-v2\nDP-2 0 0 32 32\n',
     'omarchy-zones-v2\nprofile "Name"\nDP-2 0 0 32 32 # inline\n',
@@ -69,9 +65,9 @@ for (const text of [
     'omarchy-zones-v2\nprofile "Name"\nDP-2 0 0 9999999999999999999 32\n',
     'omarchy-zones-v2\nprofile "Name"\nDP-2 32768 0 32 32\n',
     'omarchy-zones-v2\nprofile "A"\nprofile "A"\n',
-    "omarchy-zones-v1\nDP-2 0 0 32 32\nDP-2 1 0 32 32\n",
-    "omarchy-zones-v1\n#" + "x".repeat(512) + "\n",
-    "omarchy-zones-v1\n" + "# comment\n".repeat(14000),
+    'omarchy-zones-v2\nprofile "Name"\nDP-2 0 0 32 32\nDP-2 1 0 32 32\n',
+    "omarchy-zones-v2\n#" + "x".repeat(512) + "\n",
+    "omarchy-zones-v2\n" + "# comment\n".repeat(14000),
 ]) reject(text);
 for (const name of ["", " leading", "trailing ", "A\tB", "A\u007f", "\u00a0leading", "trailing\u3000", "a".repeat(65), "अ".repeat(22), "\ud800"])
     assert.throws(() => Profiles.validate([{name, layouts: []}]));
@@ -79,7 +75,7 @@ assert.equal(Profiles.byteLength("अध्ययन🙂"), Buffer.byteLength("�
 assert.equal(Profiles.validate([{name: "a".repeat(64), layouts: []}]), true);
 const maximum = Array.from({length: 12}, (_, p) => ({name: `Profile ${p}`, layouts: [{monitor: "DP-2", zones:
     Array.from({length: 64}, (_, z) => ({x: z * 32, y: 0, w: 32, h: 32}))}]}));
-assert.equal(Profiles.serialize(Profiles.parse(Profiles.serialize(maximum)).profiles), Profiles.serialize(maximum));
+assert.equal(Profiles.serialize(Profiles.parse(Profiles.serialize(maximum))), Profiles.serialize(maximum));
 assert.throws(() => Profiles.validate([...maximum, {name: "Thirteenth", layouts: []}]));
 const excess = plain(maximum);
 excess[0].layouts.push({monitor: "OTHER", zones: [{x: 0, y: 0, w: 32, h: 32}]});
@@ -88,4 +84,4 @@ const snapshot = Profiles.clone(definitions);
 snapshot[0].layouts[0].zones[0].w = 600;
 assert.equal(definitions[0].layouts[0].zones[0].w, 500);
 assert.equal(Profiles.defaults([{name: "DP-1", usable: {x: 10, y: 20, w: 101, h: 100}}])[0].layouts[0].zones[1].w, 51);
-console.log("QML model: shared boundaries, rollback, v1/v2 codec, Unicode, limits and snapshot isolation passed.");
+console.log("QML model: shared boundaries, rollback, profile codec, Unicode, limits and snapshot isolation passed.");

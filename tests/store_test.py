@@ -138,9 +138,7 @@ ShellRoot {{
                 self.run_store("store.load()", "!store.ready && store.error.length > 0")
                 self.assertEqual(self.path.read_bytes(), contents)
 
-    def test_legacy_format_and_exact_size_limit(self):
-        self.fixture('omarchy-zones-v1\nDP-2 0 0 640 480\n')
-        self.run_store("store.load()", 'store.ready && store.legacy && store.profiles[0].name === "Default"')
+    def test_exact_size_limit(self):
         size = 131072
         contents = VALID.encode()
         full_lines, remainder = divmod(size - len(contents), 512)

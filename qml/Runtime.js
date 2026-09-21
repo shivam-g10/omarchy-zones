@@ -2,6 +2,7 @@
 
 // The compositor bridge is evaluated in memory through Hyprland's existing
 // socket. It never changes desktop configuration or launches another process.
+// Dynamic values are Lua literals, never fragments of executable source.
 function quote(value) {
     return '"' + String(value).replace(/[\\"\x00-\x1f\x7f]/g, function (character) {
         if (character === '"' || character === "\\")
@@ -126,7 +127,7 @@ local ok, failure = pcall(function()
   state.disable = function(caller)
     if caller == state.owner then
       stop()
-      report("runtime", table.concat({0, count(state.binds), count(state.rules), state.timer and 1 or 0, 0}, ","))
+      report("runtime", "0")
     end
   end
   state.handlers.move = function()
@@ -169,14 +170,12 @@ local ok, failure = pcall(function()
       if type(value) ~= "number" or value ~= value or value % 1 ~= 0 or math.abs(value) > 65536 then return end
     end
     if width < 1 or height < 1 or width > 32768 or height > 32768 then return end
-    local applied = pcall(function()
+    pcall(function()
       if not window.mapped or window.group or window.fullscreen ~= 0 then return end
       hl.dispatch(hl.dsp.window.float({action = "enable", window = window}))
       hl.dispatch(hl.dsp.window.resize({x = width, y = height, window = window}))
       hl.dispatch(hl.dsp.window.move({x = x, y = y, window = window}))
-      emit("snapped", tostring(token))
     end)
-    if not applied then emit("error", tostring(token)) end
   end
   local function invoke(name)
     return function(...)
@@ -234,21 +233,22 @@ local ok, failure = pcall(function()
   for _, handle in pairs(state.rules) do handle:set_enabled(true) end
   for _, handle in pairs(state.binds) do handle:set_enabled(true) end
   state.enabled = true
-  report("runtime", table.concat({1, count(state.binds), count(state.rules), state.timer and 1 or 0, count(state.subscriptions)}, ","))
+  report("runtime", "1")
 end)
 if not ok then
   -- A failed registration never leaves active partial bindings or a timer.
   -- Retained handles remain available for a later successful enable attempt.
   stop()
-  report("runtime", table.concat({0, count(state.binds), count(state.rules), state.timer and 1 or 0, 0}, ","))
+  report("runtime", "0")
   local message = tostring(failure):gsub("[\\r\\n,]", " "):sub(1, 240)
   report("runtime-error", message)
 end
 `;
 }
 function call(owner, method, arguments_) {
-    return "local runtime=rawget(_G,\"omarchy_zones_runtime\"); if type(runtime)==\"table\" and runtime.schema==1 and type(runtime."
-        + method + ")==\"function\" then runtime." + method + "(" + [quote(owner)].concat((arguments_ || []).map(literal)).join(",") + ") end";
+    var member = "runtime[" + quote(method) + "]";
+    return "local runtime=rawget(_G,\"omarchy_zones_runtime\"); if type(runtime)==\"table\" and runtime.schema==1 and type("
+        + member + ")==\"function\" then " + member + "(" + [quote(owner)].concat((arguments_ || []).map(literal)).join(",") + ") end";
 }
 function disable(owner) {
     return call(owner, "disable", []);

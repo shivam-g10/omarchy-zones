@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omarchy-zones",
   "name": "Omarchy Zones",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "author": "shivam-g10",
   "description": "Dedicated window zones and profiles for large displays, inspired by FancyZones. Runs inside the existing Omarchy shell.",
   "homepage": "https://github.com/shivam-g10/omarchy-zones",

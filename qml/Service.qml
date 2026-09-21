@@ -14,10 +14,8 @@ import "Runtime.js" as Runtime
 // the cursor timer runs only during an activated drag.
 Item {
     id: root
-    property bool enabled: true
     property bool runtimeReady: false
     property string runtimeError: ""
-    property var runtimeSlots: ({binds: 0, rules: 0, timers: 0, subscriptions: 0})
     property bool active: false
     readonly property int samplingHz: 30
     property int token: -1
@@ -45,7 +43,6 @@ Item {
     property string purpose: ""
     property int requestToken: -1
     property var pending: null
-    property int queries: 0
     property alias store: definitions
     property var editorMonitors: []
     property bool wantEditor: false
@@ -56,11 +53,8 @@ Item {
     }
 
     function openEditor() {
-        if (!enabled)
-            return;
         if (editorOpen) {
-            // Only reactivate our own editor, preserving its unsaved draft.
-            Hyprland.dispatch('function() for _, w in ipairs(hl.get_windows()) do if w.title == "Omarchy Zones" then hl.dispatch(hl.dsp.focus({window=w})) end end end');
+            editorLoader.item.activate();
             return;
         }
         cancel("editor-open");
@@ -98,22 +92,7 @@ Item {
         clear();
         runtimeReady = false;
         runtimeError = "";
-        if (enabled)
-            send("j/binds", "runtime-preflight", -1);
-    }
-    function setEnabled(value) {
-        resetConnection();
-        runtimeTimeout.stop();
-        clear();
-        enabled = value;
-        runtimeReady = false;
-        if (value)
-            bootstrap();
-        else {
-            closeEditor();
-            editorLoadError = "";
-            send("/eval " + Runtime.disable(owner), "runtime-disable", -1);
-        }
+        send("j/binds", "runtime-preflight", -1);
     }
     function failEditor(message) {
         wantEditor = false;
@@ -198,7 +177,7 @@ Item {
         waiting = false;
         sent = false;
         response = "";
-        if (kind === "runtime-preflight" && enabled) {
+        if (kind === "runtime-preflight") {
             try {
                 var command = Runtime.bootstrap(owner, JSON.parse(text));
                 runtimeTimeout.restart();
@@ -268,17 +247,14 @@ Item {
             cancel("response-limit");
             return;
         }
-        var ready = false;
+        // Hyprland closes each request. Close a complete reply locally to avoid
+        // Quickshell logging a PeerClosedError for every cursor sample.
         if (purpose === "cursor" || purpose === "monitors" || purpose === "editor-monitors" || purpose === "runtime-preflight") {
             try {
                 JSON.parse(response);
-                ready = true;
+                socket.connected = false;
             } catch (_) {}
-        } else
-            ready = response.length > 0;
-        // Close after the complete response rather than waiting for the peer's
-        // normal close, which Quickshell otherwise logs as a socket warning.
-        if (ready)
+        } else if (response.length > 0)
             socket.connected = false;
     }
     function updateHover(x, y) {
@@ -323,7 +299,6 @@ Item {
         if (event.name === "configreloaded") {
             // Hyprland replaces its Lua state on reload. Discard old requests
             // before rebuilding this service's runtime; keep the editor draft.
-            runtimeSlots = {binds: 0, rules: 0, timers: 0, subscriptions: 0};
             bootstrap();
             return;
         }
@@ -339,19 +314,18 @@ Item {
         }
         if (kind === "runtime") {
             runtimeTimeout.stop();
-            runtimeSlots = {binds: Number(fields[3]), rules: Number(fields[4]), timers: Number(fields[5]), subscriptions: Number(fields[6])};
-            runtimeReady = enabled && incoming === 1;
+            runtimeReady = incoming === 1;
             if (runtimeReady)
                 runtimeError = "";
             if (runtimeReady && wantEditor && !editorOpen && definitions.ready)
                 send("j/monitors", "editor-monitors", -1);
             return;
         }
-        if (kind === "editor" && enabled && runtimeReady) {
+        if (kind === "editor" && runtimeReady) {
             openEditor();
             return;
         }
-        if (kind === "begin" && enabled && runtimeReady && definitions.ready) {
+        if (kind === "begin" && runtimeReady && definitions.ready) {
             clear();
             token = incoming;
             monitorName = fields[4];
@@ -422,8 +396,8 @@ Item {
         running: root.active && visuals.active
         repeat: true
         onTriggered: {
-            if (!root.waiting && root.send("j/cursorpos", "cursor", root.token))
-                root.queries++;
+            if (!root.waiting)
+                root.send("j/cursorpos", "cursor", root.token);
         }
     }
     Loader {
@@ -504,56 +478,6 @@ Item {
         function onErrorChanged() {
             if (definitions.error && root.wantEditor && !root.editorOpen)
                 root.failEditor(definitions.error);
-        }
-    }
-    IpcHandler {
-        target: "omarchy-zones"
-        function openEditor(): string {
-            root.openEditor();
-            return "ok";
-        }
-        function closeEditor(): string {
-            if (editorLoader.item)
-                editorLoader.item.requestClose();
-            return "ok";
-        }
-        function editorState(): string {
-            return JSON.stringify(editorLoader.item ? editorLoader.item.inspect() : null);
-        }
-        function pickerState(): string {
-            return JSON.stringify({
-                picker: root.picker,
-                profiles: root.profiles,
-                bounds: root.bounds
-            });
-        }
-        function enable(value: bool): string {
-            root.setEnabled(value);
-            return "ok";
-        }
-        function status(): string {
-            return JSON.stringify({
-                active: root.active,
-                token: root.token,
-                queries: root.queries,
-                waiting: root.waiting,
-                hz: root.samplingHz,
-                enabled: root.enabled,
-                runtimeReady: root.runtimeReady,
-                runtimeError: root.runtimeError,
-                runtimeSlots: root.runtimeSlots,
-                profile: root.profileIndex,
-                zone: root.hoverIndex,
-                bounds: root.bounds,
-                ready: definitions.ready && root.runtimeReady,
-                storeBusy: definitions.busy,
-                storeError: definitions.error,
-                editorOpen: root.editorOpen,
-                editorLoadError: root.editorLoadError,
-                savedProfiles: definitions.profiles.length,
-                visualsActive: visuals.active,
-                profileCount: root.profiles.length
-            });
         }
     }
     Component.onCompleted: {

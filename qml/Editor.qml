@@ -41,6 +41,11 @@ FloatingWindow {
     readonly property var selection: zones[selected] || null
     readonly property bool dirty: JSON.stringify(draft) !== savedSnapshot || controller.store.fresh
 
+    function activate() {
+        minimized = false;
+        visible = true;
+        contentItem.Window.window.requestActivate();
+    }
     function clone(value) {
         return JSON.parse(JSON.stringify(value));
     }
@@ -267,87 +272,6 @@ FloatingWindow {
             showDialog("close");
         else
             controller.closeEditor();
-    }
-    function center(item) {
-        var p = item.mapToItem(content, item.width / 2, item.height / 2);
-        return {
-            x: p.x,
-            y: p.y
-        };
-    }
-    // Read-only diagnostics for native interaction checks.
-    function inspect() {
-        var controls = {
-            profileChoice: center(profileChoice),
-            addProfile: center(addProfile),
-            duplicateProfile: center(duplicateProfile),
-            renameProfile: center(renameProfile),
-            deleteProfile: center(deleteProfile),
-            drawZone: center(drawZone),
-            splitVertical: center(splitVertical),
-            splitHorizontal: center(splitHorizontal),
-            deleteZone: center(deleteZoneButton),
-            saveZones: center(saveButton),
-            close: center(closeButton)
-        };
-        for (var i = 0; i < 4; ++i)
-            controls[["xValue", "yValue", "widthValue", "heightValue"][i]] = center(numericFields.itemAt(i).input);
-        var first = zones[0] || {
-            x: 0,
-            y: 0,
-            w: 0,
-            h: 0
-        };
-        var origin = canvas.mapToItem(content, canvas.originX, canvas.originY);
-        var inputs = [];
-        for (var field = 0; field < 4; ++field) {
-            var widget = numericFields.itemAt(field).input;
-            inputs.push({text: widget.text, focus: widget.activeFocus, enabled: widget.enabled, pressFocus: widget.activeFocusOnPress});
-        }
-        return {
-            editorWidth: width,
-            editorHeight: height,
-            controls: controls,
-            inputs: inputs,
-            profileNames: draft.map(function (p) {
-                return p.name;
-            }),
-            profileIndex: profileIndex,
-            profilePopupOpen: profileChoice.popupOpen,
-            rectangles: zones.map(function (r) {
-                return [r.x, r.y, r.w, r.h];
-            }),
-            selectedZone: selected,
-            boundaryValue: selection ? selection.w : 0,
-            boundary: {
-                x: origin.x + (first.x + first.w) * canvas.scaleFactor,
-                y: origin.y + (first.y + first.h / 2) * canvas.scaleFactor
-            },
-            canvas: {
-                x: canvas.x,
-                y: canvas.y,
-                w: canvas.width,
-                h: canvas.height,
-                scale: canvas.scaleFactor,
-                originX: origin.x,
-                originY: origin.y
-            },
-            saveEnabled: saveButton.enabled,
-            dirty: dirty,
-            message: message,
-            theme: {
-                accent: String(Color.accent),
-                fontSize: Style.font.body
-            },
-            modal: modal.opened ? {
-                kind: dialogKind,
-                name: center(nameInput),
-                accept: center(acceptButton),
-                cancel: center(cancelButton),
-                save: center(modalSaveButton),
-                error: dialogError
-            } : null
-        };
     }
     Connections {
         target: controller.store
@@ -663,7 +587,6 @@ FloatingWindow {
                         ]
                         delegate: RowLayout {
                             required property var modelData
-                            property alias input: fieldInput
                             Layout.fillWidth: true
                             Text {
                                 text: modelData.label

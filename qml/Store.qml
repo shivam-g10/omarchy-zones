@@ -13,7 +13,6 @@ Item {
     property bool busy: false
     property string error: ""
     property bool fresh: false
-    property bool legacy: false
     property string path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
         + "/omarchy-zones/zones.conf"
     signal loaded()
@@ -128,16 +127,13 @@ Item {
                 // strictly decoded text confirms every byte, including any BOM.
                 if (text !== pendingText) throw Error("The saved profiles could not be verified. Your edits remain unsaved.")
                 profiles = pendingProfiles
-                legacy = false
                 fresh = false
                 ready = true
                 changes.path = ""
                 changes.path = path // A first save may have created the parent.
                 finish("", "save")
             } else {
-                var parsed = Profiles.parse(text)
-                profiles = parsed.profiles
-                legacy = parsed.legacy
+                profiles = Profiles.parse(text)
                 fresh = false
                 ready = true
                 finish("", "load")
@@ -151,7 +147,6 @@ Item {
         if (operation !== "load" && operation !== "verify") return
         if (operation === "load" && code === FileViewError.FileNotFound && path === operationPath) {
             profiles = []
-            legacy = false
             fresh = true
             ready = true
             finish("", "load")

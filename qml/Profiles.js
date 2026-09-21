@@ -121,9 +121,8 @@ function parse(text) {
     if (text.indexOf("\n") < 0) fail("Unknown zone file format.")
     var lines = text.split("\n")
     var header = lines[0].replace(/\r$/, "")
-    var legacy = header === "omarchy-zones-v1"
-    if (!legacy && header !== "omarchy-zones-v2") fail("Unknown zone file format.")
-    var profiles = legacy ? [{name: "Default", layouts: []}] : []
+    if (header !== "omarchy-zones-v2") fail("Unknown zone file format.")
+    var profiles = []
     for (var n = 0; n < lines.length; n++) {
         if (byteLength(lines[n]) > maxLineBytes) fail("A zone file line exceeds 512 bytes.")
         if (n === 0) continue
@@ -132,7 +131,7 @@ function parse(text) {
         try {
             var match = /^([^ \t\r\v\f]+)(?:[ \t\r\v\f]+(.*))?$/.exec(line)
             var first = match[1], rest = match[2] || ""
-            if (!legacy && first === "profile" && rest.charAt(0) === '"') {
+            if (first === "profile" && rest.charAt(0) === '"') {
                 if (profiles.length >= maxProfiles) fail("At most 12 profiles are allowed.")
                 profiles.push({name: quoted(rest), layouts: []})
                 continue
@@ -155,7 +154,7 @@ function parse(text) {
         } catch (error) { fail(error.message + " At line " + (n + 1) + ".") }
     }
     validate(profiles)
-    return {profiles: profiles, legacy: legacy}
+    return profiles
 }
 
 function serialize(profiles) {
