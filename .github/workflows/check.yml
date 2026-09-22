@@ -9,11 +9,25 @@ permissions:
 
 jobs:
   qml-and-models:
-    runs-on: ubuntu-latest
-    container: archlinux:base
+    runs-on: ubuntu-24.04
+    # Refresh the image digest and archive date together, then rerun all checks.
+    # The hosted runner still receives GitHub updates; the container is pinned.
+    container: archlinux@sha256:f3691b4dde62ba4c4b6f0ae2c1fbf28e8c0c8c4b9a35c7e06dc1f70e21aa29f6
     steps:
       - name: Install test tools
-        run: pacman -Syu --noconfirm --needed git nodejs python lua qt6-declarative quickshell
+        run: |
+          # Use only this snapshot, with required trusted package signatures.
+          cat > /tmp/ci-pacman.conf <<'EOF'
+          [options]
+          Architecture = auto
+          SigLevel = Required DatabaseOptional TrustedOnly
+          [core]
+          Server = https://archive.archlinux.org/repos/2026/09/21/$repo/os/$arch
+          [extra]
+          Server = https://archive.archlinux.org/repos/2026/09/21/$repo/os/$arch
+          EOF
+          pacman --config /tmp/ci-pacman.conf -Syyuu --noconfirm --needed git nodejs python lua qt6-declarative quickshell
+          pacman -Q
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Check models and native file storage
         run: |
